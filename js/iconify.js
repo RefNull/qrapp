@@ -13,8 +13,14 @@ export async function searchIcons(query, limit = 30) {
 
 export function iconSvgUrl(iconId, color) {
   const [prefix, name] = iconId.split(':');
-  const params = color ? `?color=${encodeURIComponent(color)}` : '';
-  return `${API}/${prefix}/${name}.svg${params}`;
+  const params = new URLSearchParams();
+  if (color) {
+    const cleanColor = color.startsWith('#') ? color : '#' + color.replace(/^%23/, '');
+    params.set('color', cleanColor);
+  }
+  params.set('width', '256');
+  params.set('height', '256');
+  return `${API}/${prefix}/${name}.svg?${params.toString()}`;
 }
 
 export async function fetchIconSvgText(iconId, color) {

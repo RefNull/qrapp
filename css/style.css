@@ -432,12 +432,15 @@ body {
 }
 .iconify-grid {
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
+  grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
   gap: 8px;
   max-height: 180px;
   overflow-y: auto;
+  overflow-x: hidden;
+  padding: 2px;
 }
 .iconify-grid button {
+  min-width: 0;
   aspect-ratio: 1;
   border-radius: 10px;
   border: 1px solid var(--border);
@@ -446,9 +449,10 @@ body {
   align-items: center;
   justify-content: center;
   padding: 6px;
+  cursor: pointer;
 }
 .iconify-grid button.selected { border-color: var(--accent); background: var(--surface-2); }
-.iconify-grid img { width: 100%; height: 100%; }
+.iconify-grid img { width: 100%; height: 100%; object-fit: contain; }
 
 .color-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
 .color-row:last-child { margin-bottom: 0; }
@@ -526,10 +530,17 @@ select#select-transition {
 .install-hero p { margin: 0; color: var(--text-dim); font-size: 13px; word-break: break-all; padding: 0 24px; }
 
 .install-block { padding: 0 16px; margin-top: 12px; flex: 1; }
-.ios-steps { color: var(--text); font-size: 15px; line-height: 1.9; padding-left: 20px; }
-.ios-coach { text-align: center; margin-top: 24px; color: var(--text-dim); }
-.coach-arrow { font-size: 34px; animation: bob 1.2s ease-in-out infinite; }
-@keyframes bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(10px); } }
+.install-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 16px calc(var(--safe-bottom) + 12px);
+  margin-top: auto;
+}
+.install-actions .btn {
+  margin: 0;
+  width: 100%;
+}
 
 .step-icon {
   display: inline-flex;

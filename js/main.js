@@ -103,7 +103,7 @@ async function runInstallView(cfg) {
   $('install-app-target').textContent = cfg.targetUrl;
 
   const canvas = $('install-icon-canvas');
-  applyForInstall(cfg, renderPlaceholderIcon(canvas, { bgColor: cfg.bgColor, label: cfg.name }));
+  applyForInstall(cfg, renderPlaceholderIcon(canvas, { bgColor: cfg.bgColor, fgColor: cfg.fgColor, label: cfg.name }));
 
   // Upgrade to the real icon (favicon/iconify/upload) once it's ready, and
   // re-apply — browsers pick up manifest link / meta tag changes, but the
@@ -137,6 +137,34 @@ async function runInstallView(cfg) {
     await deferredInstallPrompt.userChoice;
     deferredInstallPrompt = null;
   });
+
+  const shareBtn = $('btn-install-share');
+  if (shareBtn) {
+    shareBtn.addEventListener('click', async () => {
+      const shareUrl = location.href;
+      const shareData = {
+        title: cfg.name,
+        text: `Install ${cfg.name} as an app`,
+        url: shareUrl,
+      };
+      if (navigator.share && (!navigator.canShare || navigator.canShare(shareData))) {
+        try {
+          await navigator.share(shareData);
+          return;
+        } catch (err) {
+          if (err.name === 'AbortError') return;
+        }
+      }
+      try {
+        await navigator.clipboard.writeText(shareUrl);
+        const originalText = shareBtn.textContent;
+        shareBtn.textContent = 'Link copied!';
+        setTimeout(() => { shareBtn.textContent = originalText; }, 2000);
+      } catch {
+        prompt('Copy this link to share the app:', shareUrl);
+      }
+    });
+  }
 
   $('btn-install-restart').addEventListener('click', () => {
     location.href = location.pathname;
@@ -420,12 +448,12 @@ function runScanFlow() {
     scheduleMockupUpdate();
   });
 
-  // Background color only makes sense for the composited sources (Iconify /
-  // upload) — "Auto" uses the site's own icon untouched. Icon color only
-  // applies to Iconify glyphs, which is the only source we can recolor.
+  // Background color applies to monogram, Iconify, and uploads (favicon uses
+  // the original image as-is). Icon color applies to both Iconify glyphs and
+  // the monogram letter.
   function updateColorFieldVisibility() {
     $('field-bg-color').hidden = state.iconSource === 'favicon';
-    $('field-fg-color').hidden = state.iconSource !== 'iconify';
+    $('field-fg-color').hidden = state.iconSource !== 'iconify' && state.iconSource !== 'monogram';
   }
 
   // icon source tabs
@@ -434,7 +462,10 @@ function runScanFlow() {
       document.querySelectorAll('#icon-source-tabs .tab').forEach((t) => t.classList.remove('active'));
       tab.classList.add('active');
       state.iconSource = tab.dataset.source;
-      ['favicon', 'iconify', 'upload'].forEach((s) => { $(`panel-${s}`).hidden = s !== state.iconSource; });
+      ['favicon', 'monogram', 'iconify', 'upload'].forEach((s) => {
+        const p = $(`panel-${s}`);
+        if (p) p.hidden = s !== state.iconSource;
+      });
       updateColorFieldVisibility();
       scheduleMockupUpdate();
     });
@@ -468,7 +499,7 @@ function runScanFlow() {
       for (const id of icons.slice(0, 30)) {
         const btn = document.createElement('button');
         btn.type = 'button';
-        btn.innerHTML = `<img src="${iconSvgUrl(id, '%23ffffff')}" alt="${id}">`;
+        btn.innerHTML = `<img src="${iconSvgUrl(id, '#ffffff')}" alt="${id}">`;
         btn.addEventListener('click', () => {
           document.querySelectorAll('.iconify-grid button').forEach((b) => b.classList.remove('selected'));
           btn.classList.add('selected');
@@ -540,9 +571,12 @@ function runScanFlow() {
     $('swatch-fg').style.background = state.fgColor;
   }
 
-  $('select-transition').addEventListener('change', (e) => {
-    state.transition = e.target.value;
-  });
+  const transitionSelect = $('select-transition');
+  if (transitionSelect) {
+    transitionSelect.addEventListener('change', (e) => {
+      state.transition = e.target.value;
+    });
+  }
 
   // Coalesce to at most one redraw per frame — the underlying glyph is
   // cached (see iconBuilder.js), so this reads as real-time even while

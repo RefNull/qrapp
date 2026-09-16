@@ -18,7 +18,7 @@
      `beforeinstallprompt` and caused installs to pick up the wrong
      (paramless) start_url. -->
 <link rel="manifest" id="link-manifest">
-<link rel="stylesheet" href="css/style.css?v=3">
+<link rel="stylesheet" href="css/style.css?v=4">
 </head>
 <body>
 
@@ -92,22 +92,17 @@
       <div id="sheet-android-fallback" class="sheet-install-block" hidden>
         <ol class="ios-steps">
           <li>Tap <span class="step-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg></span> in Chrome's toolbar (top right)</li>
-          <li>Tap <strong>Add to Home screen</strong> (or <strong>Install app</strong>)</li>
+          <li>Tap <strong>Add to Home screen</strong></li>
           <li>Tap <strong>Install</strong> to confirm</li>
         </ol>
       </div>
 
       <div id="sheet-ios-block" class="sheet-install-block" hidden>
         <ol class="ios-steps">
-          <li>Tap <span class="step-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></span> next to the address bar &mdash; or Share <span class="step-icon inline" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 8l5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg></span> directly</li>
-          <li>Tap Share <span class="step-icon inline" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 8l5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg></span></li>
+          <li>Tap Share <span class="step-icon inline" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 8l5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg></span> in Safari's toolbar</li>
           <li>Scroll down and tap <strong>Add to Home Screen</strong></li>
           <li>Tap <strong>Add</strong> at top right</li>
         </ol>
-        <div class="ios-coach">
-          <div class="coach-arrow">&#8595;</div>
-          <p>Look for the Share icon in Safari's toolbar</p>
-        </div>
       </div>
 
       <div id="sheet-generic-block" class="sheet-install-block" hidden>
@@ -171,12 +166,14 @@
       <div class="field">
         <span>Image</span>
         <div class="tabs" id="icon-source-tabs">
-          <button class="tab active" data-source="favicon">Auto</button>
-          <button class="tab" data-source="iconify">Icon library</button>
-          <button class="tab" data-source="upload">Upload</button>
+          <button type="button" class="tab active" data-source="favicon">Auto</button>
+          <button type="button" class="tab" data-source="monogram">Letter</button>
+          <button type="button" class="tab" data-source="iconify">Icon library</button>
+          <button type="button" class="tab" data-source="upload">Upload</button>
         </div>
 
         <div class="tab-panel" id="panel-favicon"></div>
+        <div class="tab-panel" id="panel-monogram" hidden></div>
 
         <div class="tab-panel" id="panel-iconify" hidden>
           <input id="iconify-search" type="search" placeholder="Search icons&hellip; e.g. calendar" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false">
@@ -217,7 +214,7 @@
         </div>
       </div>
 
-      <div class="field">
+      <div class="field" hidden>
         <span>Launch transition</span>
         <select id="select-transition">
           <option value="instant">Instant</option>
@@ -248,22 +245,17 @@
     <div id="install-android-fallback" class="install-block" hidden>
       <ol class="ios-steps">
         <li>Tap <span class="step-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg></span> in Chrome's toolbar (top right)</li>
-        <li>Tap <strong>Add to Home screen</strong> (sometimes shown as <strong>Install app</strong>)</li>
-        <li>Tap <strong>Add</strong> / <strong>Install</strong> to confirm</li>
+        <li>Tap <strong>Add to Home screen</strong></li>
+        <li>Tap <strong>Install</strong> to confirm</li>
       </ol>
     </div>
 
     <div id="install-ios" class="install-block" hidden>
       <ol class="ios-steps">
-        <li>Tap <span class="step-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></span> next to the address bar &mdash; or Share <span class="step-icon inline" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 8l5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg></span> directly, if that's what your Safari layout shows</li>
-        <li>Tap Share <span class="step-icon inline" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 8l5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg></span></li>
-        <li>Scroll down and tap <strong>Add to Home Screen</strong>. Not listed? Tap <strong>Edit Actions</strong> at the bottom and add it.</li>
-        <li>Turn on <strong>Open as Web App</strong> if you see it, then tap <strong>Add</strong></li>
+        <li>Tap Share <span class="step-icon inline" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 8l5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg></span> in Safari's toolbar</li>
+        <li>Scroll down and tap <strong>Add to Home Screen</strong></li>
+        <li>Tap <strong>Add</strong> at top right</li>
       </ol>
-      <div class="ios-coach">
-        <div class="coach-arrow">&#8595;</div>
-        <p>Look for the Share icon in Safari's toolbar</p>
-      </div>
       <a class="guide-link" href="https://support.apple.com/en-gb/guide/iphone/iphea86e5236/ios" target="_blank" rel="noopener">Apple's guide to Add to Home Screen &rarr;</a>
     </div>
 
@@ -271,12 +263,15 @@
       <p>Open this page in Safari (iOS) or Chrome (Android) to install it as an app.</p>
     </div>
 
-    <button id="btn-install-restart" class="btn btn-secondary">Scan another code</button>
+    <div class="install-actions">
+      <button id="btn-install-share" class="btn btn-primary" type="button">Share app</button>
+      <button id="btn-install-restart" class="btn btn-secondary" type="button">Scan another code</button>
+    </div>
   </section>
 
 </div>
 
 <script src="lib/jsQR.min.js"></script>
-<script type="module" src="js/main.js?v=3"></script>
+<script type="module" src="js/main.js?v=4"></script>
 </body>
 </html>

@@ -5,7 +5,7 @@
 //   n  app name
 //   bg background color (hex, no #)
 //   fg foreground/icon color (hex, no #)
-//   is icon source: "favicon" | "iconify" | "upload"
+//   is icon source: "favicon" | "monogram" | "iconify" | "upload"
 //   iv icon value: favicon candidate index | iconify id | (upload embeds bytes in "iu")
 //   iu uploaded icon as a data URI (only present for uploads)
 //   fx transition style: "instant" | "fade" | "slide"

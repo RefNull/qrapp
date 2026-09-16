@@ -34,13 +34,8 @@ function loadGlyphImage(opts) {
   const promise = (async () => {
     if (sourceType === 'iconify') {
       const svgText = await fetchIconSvgText(sourceValue, fgColor);
-      const blob = new Blob([svgText], { type: 'image/svg+xml' });
-      const url = URL.createObjectURL(blob);
-      try {
-        return await loadImage(url);
-      } finally {
-        URL.revokeObjectURL(url);
-      }
+      const dataUri = 'data:image/svg+xml;utf8,' + encodeURIComponent(svgText);
+      return loadImage(dataUri);
     }
     if (sourceType === 'upload') {
       return loadImage(sourceValue); // data URI, always same-origin-safe
@@ -82,11 +77,15 @@ function drawContained(ctx, size, img, coverage) {
   ctx.drawImage(img, offset + (box - dw) / 2, offset + (box - dh) / 2, dw, dh);
 }
 
-function drawMonogram(ctx, size, label, bgColor) {
+function drawMonogram(ctx, size, label, bgColor, fgColor) {
   const letter = (label || '?').trim().charAt(0).toUpperCase() || '?';
-  const n = parseInt(bgColor.replace('#', ''), 16) || 0;
-  const lum = (0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255;
-  ctx.fillStyle = lum > 0.6 ? '#111318' : '#ffffff';
+  if (fgColor) {
+    ctx.fillStyle = fgColor;
+  } else {
+    const n = parseInt(bgColor.replace('#', ''), 16) || 0;
+    const lum = (0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255;
+    ctx.fillStyle = lum > 0.6 ? '#111318' : '#ffffff';
+  }
   ctx.font = `700 ${Math.round(size * 0.46)}px -apple-system, Roboto, sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
@@ -96,11 +95,11 @@ function drawMonogram(ctx, size, label, bgColor) {
 // Synchronous placeholder (background + monogram, no image loads at all).
 // Used so the manifest/meta tags can carry a valid icon on the very first
 // script tick, before any async glyph fetch — see runInstallView in main.js.
-export function renderPlaceholderIcon(canvas, { bgColor, label }) {
+export function renderPlaceholderIcon(canvas, { bgColor, fgColor, label }) {
   const size = canvas.width;
   const ctx = canvas.getContext('2d');
   drawFill(ctx, size, bgColor);
-  drawMonogram(ctx, size, label, bgColor);
+  drawMonogram(ctx, size, label, bgColor, fgColor);
   return canvas.toDataURL('image/png');
 }
 
@@ -112,21 +111,39 @@ export async function renderIconToCanvas(canvas, opts) {
   const ctx = canvas.getContext('2d');
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
-  const isAuto = opts.sourceType === 'favicon';
 
-  drawFill(ctx, size, isAuto ? '#ffffff' : opts.bgColor);
+  // Synchronous first-class monogram handling: zero flashing, zero async latency
+  if (opts.sourceType === 'monogram') {
+    drawFill(ctx, size, opts.bgColor);
+    drawMonogram(ctx, size, opts.label, opts.bgColor, opts.fgColor);
+    return true;
+  }
+
+  const isAuto = opts.sourceType === 'favicon';
+  // Use offscreen canvas to prevent clearing visible canvas while awaiting
+  const offscreen = document.createElement('canvas');
+  offscreen.width = offscreen.height = size;
+  const offCtx = offscreen.getContext('2d');
+  offCtx.imageSmoothingEnabled = true;
+  offCtx.imageSmoothingQuality = 'high';
+
+  drawFill(offCtx, size, isAuto ? '#ffffff' : opts.bgColor);
   try {
     const img = await loadGlyphImage(opts);
-    drawContained(ctx, size, img, isAuto ? 0.94 : 0.66);
+    drawContained(offCtx, size, img, isAuto ? 0.94 : 0.66);
     if (isAuto) {
       // Force a pixel read now so a tainted canvas fails here, inside the
       // try block, rather than later when the caller calls toDataURL().
-      ctx.getImageData(0, 0, 1, 1);
+      offCtx.getImageData(0, 0, 1, 1);
     }
+    ctx.clearRect(0, 0, size, size);
+    ctx.drawImage(offscreen, 0, 0);
     return true;
   } catch {
-    drawFill(ctx, size, opts.bgColor);
-    drawMonogram(ctx, size, opts.label, opts.bgColor);
+    drawFill(offCtx, size, opts.bgColor);
+    drawMonogram(offCtx, size, opts.label, opts.bgColor, opts.fgColor);
+    ctx.clearRect(0, 0, size, size);
+    ctx.drawImage(offscreen, 0, 0);
     return false;
   }
 }
