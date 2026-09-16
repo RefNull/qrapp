@@ -43,26 +43,75 @@ export class Scanner {
       return;
     }
 
+    this.video.classList.remove('ready');
     this.video.srcObject = this.stream;
-
-    // Reveal video only after the first frame has begun playing, avoiding
-    // WebKit's transient intrinsic rectangular sizing glitch.
-    const onPlaying = () => {
-      this.video.classList.add('ready');
-      this.video.removeEventListener('playing', onPlaying);
-    };
-    this.video.addEventListener('playing', onPlaying);
 
     try {
       await this.video.play();
     } catch (err) {
-      this.video.removeEventListener('playing', onPlaying);
       this.onError?.(err);
       return;
     }
 
     this._checkTorchSupport();
     this._loop();
+    this._waitForVideoReady();
+  }
+
+  async _waitForVideoReady() {
+    if (this.stopped) return;
+
+    const hasDimensions = () => (
+      this.video.videoWidth > 0 &&
+      this.video.videoHeight > 0 &&
+      this.video.readyState >= 2
+    );
+
+    if (!hasDimensions()) {
+      await new Promise((resolve) => {
+        const onReady = () => {
+          if (hasDimensions() || this.stopped) {
+            cleanup();
+            resolve();
+          }
+        };
+        const cleanup = () => {
+          this.video.removeEventListener('loadedmetadata', onReady);
+          this.video.removeEventListener('loadeddata', onReady);
+          this.video.removeEventListener('canplay', onReady);
+          this.video.removeEventListener('playing', onReady);
+          this.video.removeEventListener('resize', onReady);
+        };
+        this.video.addEventListener('loadedmetadata', onReady);
+        this.video.addEventListener('loadeddata', onReady);
+        this.video.addEventListener('canplay', onReady);
+        this.video.addEventListener('playing', onReady);
+        this.video.addEventListener('resize', onReady);
+        setTimeout(() => { cleanup(); resolve(); }, 1000);
+      });
+    }
+
+    if (this.stopped) return;
+
+    if ('requestVideoFrameCallback' in this.video) {
+      await new Promise((resolve) => {
+        let timer = setTimeout(resolve, 400);
+        this.video.requestVideoFrameCallback(() => {
+          clearTimeout(timer);
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              setTimeout(resolve, 100);
+            });
+          });
+        });
+      });
+    } else {
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+
+    if (!this.stopped) {
+      this.video.classList.add('ready');
+    }
   }
 
   stop() {

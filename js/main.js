@@ -62,8 +62,17 @@ window.addEventListener('beforeinstallprompt', (e) => {
 // Entry: figure out which of the three modes this page load is.
 // ---------------------------------------------------------------------------
 const params = decodeAppParams(new URLSearchParams(location.search));
+const isCreatedInThisSession = (() => {
+  try {
+    return sessionStorage.getItem('qrapp_created') === '1';
+  } catch {
+    return false;
+  }
+})();
+const hasLaunchParam = new URLSearchParams(location.search).has('launch');
+const isLaunchMode = (isStandalone() || hasLaunchParam) && !isCreatedInThisSession;
 
-if (params && isStandalone()) {
+if (params && isLaunchMode) {
   runLaunch(params);
 } else if (params) {
   runInstallView(params);
@@ -97,7 +106,11 @@ function runLaunch(cfg) {
 // ---------------------------------------------------------------------------
 // Mode: this exact URL is a generated app -> show install instructions.
 // ---------------------------------------------------------------------------
+let installViewInitialized = false;
+let activeInstallCfg = null;
+
 async function runInstallView(cfg) {
+  activeInstallCfg = cfg;
   showView('install');
   $('install-app-name').textContent = cfg.name;
   $('install-app-target').textContent = cfg.targetUrl;
@@ -131,50 +144,65 @@ async function runInstallView(cfg) {
     $('install-generic').hidden = false;
   }
 
-  $('btn-install-android').addEventListener('click', async () => {
-    if (!deferredInstallPrompt) return;
-    deferredInstallPrompt.prompt();
-    await deferredInstallPrompt.userChoice;
-    deferredInstallPrompt = null;
-  });
+  if (!installViewInitialized) {
+    installViewInitialized = true;
 
-  const shareBtn = $('btn-install-share');
-  if (shareBtn) {
-    shareBtn.addEventListener('click', async () => {
-      const shareUrl = location.href;
-      const shareData = {
-        title: cfg.name,
-        text: `Install ${cfg.name} as an app`,
-        url: shareUrl,
-      };
-      if (navigator.share && (!navigator.canShare || navigator.canShare(shareData))) {
-        try {
-          await navigator.share(shareData);
-          return;
-        } catch (err) {
-          if (err.name === 'AbortError') return;
+    $('btn-install-android').addEventListener('click', async () => {
+      if (!deferredInstallPrompt) return;
+      deferredInstallPrompt.prompt();
+      await deferredInstallPrompt.userChoice;
+      deferredInstallPrompt = null;
+    });
+
+    const shareBtn = $('btn-install-share');
+    if (shareBtn) {
+      shareBtn.addEventListener('click', async () => {
+        const shareUrl = location.href;
+        const appName = activeInstallCfg?.name || 'App';
+        const shareData = {
+          title: appName,
+          text: `Install ${appName} as an app`,
+          url: shareUrl,
+        };
+        if (navigator.share && (!navigator.canShare || navigator.canShare(shareData))) {
+          try {
+            await navigator.share(shareData);
+            return;
+          } catch (err) {
+            if (err.name === 'AbortError') return;
+          }
         }
-      }
+        try {
+          await navigator.clipboard.writeText(shareUrl);
+          const originalText = shareBtn.textContent;
+          shareBtn.textContent = 'Link copied!';
+          setTimeout(() => { shareBtn.textContent = originalText; }, 2000);
+        } catch {
+          prompt('Copy this link to share the app:', shareUrl);
+        }
+      });
+    }
+
+    $('btn-install-restart').addEventListener('click', () => {
       try {
-        await navigator.clipboard.writeText(shareUrl);
-        const originalText = shareBtn.textContent;
-        shareBtn.textContent = 'Link copied!';
-        setTimeout(() => { shareBtn.textContent = originalText; }, 2000);
-      } catch {
-        prompt('Copy this link to share the app:', shareUrl);
-      }
+        sessionStorage.removeItem('qrapp_created');
+      } catch {}
+      location.href = location.pathname;
     });
   }
-
-  $('btn-install-restart').addEventListener('click', () => {
-    location.href = location.pathname;
-  });
 }
 
 function applyForInstall(cfg, iconDataUri) {
+  let launchUrl = location.href;
+  try {
+    const u = new URL(location.href);
+    u.searchParams.set('launch', '1');
+    launchUrl = u.toString();
+  } catch {}
+
   const manifestUri = buildManifestDataUri({
     name: cfg.name,
-    startUrl: location.href,
+    startUrl: launchUrl,
     bgColor: cfg.bgColor,
     iconDataUri,
   });
@@ -598,6 +626,25 @@ function runScanFlow() {
 
   $('btn-customize-next').addEventListener('click', () => {
     const finalUrl = encodeAppUrl('index.html', state);
-    location.href = finalUrl;
+    try {
+      sessionStorage.setItem('qrapp_created', '1');
+    } catch {}
+    history.pushState({ view: 'install', cfg: { ...state } }, '', finalUrl);
+    runInstallView(state);
   });
 }
+
+window.addEventListener('popstate', (e) => {
+  if (e.state && e.state.view) {
+    if (e.state.view === 'install' && e.state.cfg) {
+      runInstallView(e.state.cfg);
+    } else {
+      showView(e.state.view);
+    }
+  } else if (!location.search) {
+    try {
+      sessionStorage.removeItem('qrapp_created');
+    } catch {}
+    showView('scan');
+  }
+});
