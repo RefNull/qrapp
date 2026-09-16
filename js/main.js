@@ -33,11 +33,19 @@ const colorCanvas = document.createElement('canvas');
 colorCanvas.width = colorCanvas.height = 1;
 const colorCtx = colorCanvas.getContext('2d', { willReadFrequently: true });
 
-function hueToHex(hue, sat = 70, light = 45) {
+function colorToHex(hue, sat, light) {
   colorCtx.fillStyle = `hsl(${hue}, ${sat}%, ${light}%)`;
   colorCtx.fillRect(0, 0, 1, 1);
   const [r, g, b] = colorCtx.getImageData(0, 0, 1, 1).data;
   return '#' + [r, g, b].map((v) => v.toString(16).padStart(2, '0')).join('');
+}
+
+function calcColor(hue, light) {
+  // Hue 0 is designated as Monochrome / Neutral (0% saturation) so the shade
+  // slider smoothly traverses from pure black to pure white through true greys.
+  // Hue > 0 applies standard vivid 65% saturation.
+  const sat = hue === 0 ? 0 : 65;
+  return colorToHex(hue, sat, light);
 }
 
 // ---------------------------------------------------------------------------
@@ -71,8 +79,8 @@ const isCreatedInThisSession = (() => {
     return false;
   }
 })();
-// Immediate launcher mode: only when opened with launch=1 from a home-screen icon
-const isLaunchMode = Boolean(params && (isStandalone() || hasLaunchParam) && hasLaunchParam && !isCreatedInThisSession);
+// Immediate launcher mode: only when opened as an installed home-screen app
+const isLaunchMode = Boolean(params && isStandalone() && !isCreatedInThisSession);
 
 if (params && isLaunchMode) {
   runLaunch(params);
@@ -241,7 +249,7 @@ function runScanFlow() {
     name: '',
     bgHue: 215,
     bgLight: 45,
-    bgColor: hueToHex(215, 65, 45),
+    bgColor: calcColor(215, 45),
     fgHue: 0,
     fgLight: 100,
     fgColor: '#ffffff',
@@ -470,8 +478,22 @@ function runScanFlow() {
   let iconify = { selectedId: '', searchTimer: null };
   let mockupRaf = null;
 
+  function updateShadeTrack(sliderId, hue) {
+    const slider = $(sliderId);
+    if (!slider) return;
+    const sat = hue === 0 ? 0 : 65;
+    const midColor = `hsl(${hue}, ${sat}%, 50%)`;
+    slider.style.background = `linear-gradient(90deg, #000000 0%, ${midColor} 50%, #ffffff 100%)`;
+  }
+
   function enterCustomize() {
     $('input-name').value = state.name;
+    $('slider-bg-hue').value = state.bgHue;
+    $('slider-bg-light').value = state.bgLight;
+    $('slider-fg-hue').value = state.fgHue;
+    $('slider-fg-light').value = state.fgLight;
+    updateShadeTrack('slider-bg-light', state.bgHue);
+    updateShadeTrack('slider-fg-light', state.fgHue);
     updateColorFieldVisibility();
     updateSwatches();
     scheduleMockupUpdate();
@@ -589,19 +611,41 @@ function runScanFlow() {
   // (including white and black at the lightness extremes, unreachable from
   // hue alone at a fixed saturation).
   function recomputeBg() {
-    state.bgColor = hueToHex(state.bgHue, 65, state.bgLight);
+    state.bgColor = calcColor(state.bgHue, state.bgLight);
     updateSwatches();
+    updateShadeTrack('slider-bg-light', state.bgHue);
     scheduleMockupUpdate();
   }
   function recomputeFg() {
-    state.fgColor = hueToHex(state.fgHue, 65, state.fgLight);
+    state.fgColor = calcColor(state.fgHue, state.fgLight);
     updateSwatches();
+    updateShadeTrack('slider-fg-light', state.fgHue);
     scheduleMockupUpdate();
   }
   $('slider-bg-hue').addEventListener('input', (e) => { state.bgHue = Number(e.target.value); recomputeBg(); });
   $('slider-bg-light').addEventListener('input', (e) => { state.bgLight = Number(e.target.value); recomputeBg(); });
   $('slider-fg-hue').addEventListener('input', (e) => { state.fgHue = Number(e.target.value); recomputeFg(); });
   $('slider-fg-light').addEventListener('input', (e) => { state.fgLight = Number(e.target.value); recomputeFg(); });
+
+  document.querySelectorAll('#chips-bg .chip').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      state.bgHue = Number(btn.dataset.hue);
+      state.bgLight = Number(btn.dataset.light);
+      $('slider-bg-hue').value = state.bgHue;
+      $('slider-bg-light').value = state.bgLight;
+      recomputeBg();
+    });
+  });
+
+  document.querySelectorAll('#chips-fg .chip').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      state.fgHue = Number(btn.dataset.hue);
+      state.fgLight = Number(btn.dataset.light);
+      $('slider-fg-hue').value = state.fgHue;
+      $('slider-fg-light').value = state.fgLight;
+      recomputeFg();
+    });
+  });
 
   function updateSwatches() {
     $('swatch-bg').style.background = state.bgColor;
@@ -634,11 +678,11 @@ function runScanFlow() {
   }
 
   $('btn-customize-next').addEventListener('click', () => {
-    const launchUrl = encodeAppUrl('index.html', state, { launch: true });
+    const installUrl = encodeAppUrl('index.html', state);
     try {
       sessionStorage.setItem('qrapp_created', '1');
     } catch {}
-    history.pushState({ view: 'install', cfg: { ...state } }, '', launchUrl);
+    history.pushState({ view: 'install', cfg: { ...state } }, '', installUrl);
     runInstallView(state);
   });
 }

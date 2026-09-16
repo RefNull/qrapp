@@ -18,7 +18,7 @@
      `beforeinstallprompt` and caused installs to pick up the wrong
      (paramless) start_url. -->
 <link rel="manifest" id="link-manifest">
-<link rel="stylesheet" href="css/style.css?v=9">
+<link rel="stylesheet" href="css/style.css?v=10">
 </head>
 <body>
 
@@ -189,28 +189,44 @@
 
       <div class="field" id="field-bg-color" hidden>
         <span>Background color</span>
+        <div class="preset-chips" id="chips-bg">
+          <button type="button" class="chip" data-hue="0" data-light="12" style="background: #1e1e24;" aria-label="Dark"></button>
+          <button type="button" class="chip" data-hue="215" data-light="45" style="background: #2866bd;" aria-label="Slate Blue"></button>
+          <button type="button" class="chip" data-hue="150" data-light="38" style="background: #1b8a5a;" aria-label="Emerald"></button>
+          <button type="button" class="chip" data-hue="360" data-light="48" style="background: #c82a2a;" aria-label="Red"></button>
+          <button type="button" class="chip" data-hue="270" data-light="48" style="background: #7c3aed;" aria-label="Purple"></button>
+          <button type="button" class="chip" data-hue="0" data-light="92" style="background: #ebebeb;" aria-label="Light Grey"></button>
+        </div>
         <div class="color-row">
-          <span class="slider-label">Hue</span>
-          <input id="slider-bg-hue" type="range" min="0" max="360" value="215">
+          <span class="slider-label">Color</span>
+          <input id="slider-bg-hue" type="range" min="0" max="360" value="215" class="hue-slider" aria-label="Background color hue">
           <span class="swatch" id="swatch-bg"></span>
         </div>
         <div class="color-row">
           <span class="slider-label">Shade</span>
-          <input id="slider-bg-light" type="range" min="0" max="100" value="45" class="lightness-slider" aria-label="Background lightness">
+          <input id="slider-bg-light" type="range" min="0" max="100" value="45" class="lightness-slider" aria-label="Background shade">
           <span class="swatch-spacer"></span>
         </div>
       </div>
 
       <div class="field" id="field-fg-color" hidden>
         <span>Icon color</span>
+        <div class="preset-chips" id="chips-fg">
+          <button type="button" class="chip" data-hue="0" data-light="100" style="background: #ffffff;" aria-label="White"></button>
+          <button type="button" class="chip" data-hue="0" data-light="0" style="background: #000000;" aria-label="Black"></button>
+          <button type="button" class="chip" data-hue="0" data-light="65" style="background: #a3a3a3;" aria-label="Grey"></button>
+          <button type="button" class="chip" data-hue="45" data-light="55" style="background: #f59e0b;" aria-label="Gold"></button>
+          <button type="button" class="chip" data-hue="190" data-light="50" style="background: #06b6d4;" aria-label="Cyan"></button>
+          <button type="button" class="chip" data-hue="360" data-light="52" style="background: #ef4444;" aria-label="Red"></button>
+        </div>
         <div class="color-row">
-          <span class="slider-label">Hue</span>
-          <input id="slider-fg-hue" type="range" min="0" max="360" value="0">
+          <span class="slider-label">Color</span>
+          <input id="slider-fg-hue" type="range" min="0" max="360" value="0" class="hue-slider" aria-label="Icon color hue">
           <span class="swatch" id="swatch-fg"></span>
         </div>
         <div class="color-row">
           <span class="slider-label">Shade</span>
-          <input id="slider-fg-light" type="range" min="0" max="100" value="100" class="lightness-slider" aria-label="Icon color lightness">
+          <input id="slider-fg-light" type="range" min="0" max="100" value="100" class="lightness-slider" aria-label="Icon color shade">
           <span class="swatch-spacer"></span>
         </div>
       </div>
@@ -274,6 +290,6 @@
 </div>
 
 <script src="lib/jsQR.min.js"></script>
-<script type="module" src="js/main.js?v=9"></script>
+<script type="module" src="js/main.js?v=10"></script>
 </body>
 </html>

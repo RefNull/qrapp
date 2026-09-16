@@ -20,12 +20,12 @@ import { fetchIconSvgText } from './iconify.js';
 // from the cached image instead of re-fetching over the network each time.
 const glyphCache = new Map(); // key -> Promise<HTMLImageElement>
 
-function glyphCacheKey({ sourceType, sourceValue, fgColor }) {
-  return sourceType === 'iconify' ? `iconify:${sourceValue}:${fgColor}` : `${sourceType}:${sourceValue}`;
+function glyphCacheKey({ sourceType, sourceValue }) {
+  return `${sourceType}:${sourceValue}`;
 }
 
 function loadGlyphImage(opts) {
-  const { sourceType, sourceValue, fgColor } = opts;
+  const { sourceType, sourceValue } = opts;
   if (!sourceValue) return Promise.reject(new Error('No icon source available'));
 
   const key = glyphCacheKey(opts);
@@ -33,8 +33,8 @@ function loadGlyphImage(opts) {
 
   const promise = (async () => {
     if (sourceType === 'iconify') {
-      const svgText = await fetchIconSvgText(sourceValue, fgColor);
-      const dataUri = 'data:image/svg+xml;utf8,' + encodeURIComponent(svgText);
+      const svgText = await fetchIconSvgText(sourceValue, '#000000');
+      const dataUri = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgText);
       return loadImage(dataUri);
     }
     if (sourceType === 'upload') {
@@ -120,6 +120,7 @@ export async function renderIconToCanvas(canvas, opts) {
   }
 
   const isAuto = opts.sourceType === 'favicon';
+  const isIconify = opts.sourceType === 'iconify';
   // Use offscreen canvas to prevent clearing visible canvas while awaiting
   const offscreen = document.createElement('canvas');
   offscreen.width = offscreen.height = size;
@@ -127,10 +128,29 @@ export async function renderIconToCanvas(canvas, opts) {
   offCtx.imageSmoothingEnabled = true;
   offCtx.imageSmoothingQuality = 'high';
 
-  drawFill(offCtx, size, isAuto ? '#ffffff' : opts.bgColor);
   try {
     const img = await loadGlyphImage(opts);
-    drawContained(offCtx, size, img, isAuto ? 0.94 : 0.66);
+
+    drawFill(offCtx, size, isAuto ? '#ffffff' : opts.bgColor);
+
+    if (isIconify && opts.fgColor) {
+      // Recolor cached black glyph client-side via canvas compositing
+      const glyphCanvas = document.createElement('canvas');
+      glyphCanvas.width = glyphCanvas.height = size;
+      const gCtx = glyphCanvas.getContext('2d');
+      gCtx.imageSmoothingEnabled = true;
+      gCtx.imageSmoothingQuality = 'high';
+
+      drawContained(gCtx, size, img, 0.66);
+      gCtx.globalCompositeOperation = 'source-in';
+      gCtx.fillStyle = opts.fgColor;
+      gCtx.fillRect(0, 0, size, size);
+
+      offCtx.drawImage(glyphCanvas, 0, 0);
+    } else {
+      drawContained(offCtx, size, img, isAuto ? 0.94 : 0.66);
+    }
+
     if (isAuto) {
       // Force a pixel read now so a tainted canvas fails here, inside the
       // try block, rather than later when the caller calls toDataURL().

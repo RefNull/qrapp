@@ -23,7 +23,7 @@ export function iconSvgUrl(iconId, color) {
   return `${API}/${prefix}/${name}.svg?${params.toString()}`;
 }
 
-export async function fetchIconSvgText(iconId, color) {
+export async function fetchIconSvgText(iconId, color = '#000000') {
   const res = await fetch(iconSvgUrl(iconId, color));
   if (!res.ok) throw new Error(`Iconify icon fetch failed: ${res.status}`);
   return res.text();

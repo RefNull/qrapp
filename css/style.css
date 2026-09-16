@@ -476,12 +476,69 @@ body {
 }
 .iconify-grid img { width: 100%; height: 100%; object-fit: contain; }
 
+.preset-chips {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0 12px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+.preset-chips .chip {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  padding: 0;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: transform 100ms ease, border-color 150ms ease, box-shadow 150ms ease;
+}
+.preset-chips .chip:active {
+  transform: scale(0.9);
+}
+
 .color-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
 .color-row:last-child { margin-bottom: 0; }
 .color-row input[type="range"] { flex: 1; accent-color: var(--accent); }
 .slider-label { width: 40px; flex-shrink: 0; font-size: 12px; color: var(--text-dim); }
 .swatch { width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--border); flex-shrink: 0; }
 .swatch-spacer { width: 30px; flex-shrink: 0; }
+
+.hue-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  flex: 1;
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #000000 0%, #71717a 6%, hsl(0, 75%, 50%) 10%, hsl(60, 75%, 50%) 26%, hsl(120, 75%, 50%) 42%, hsl(180, 75%, 50%) 58%, hsl(240, 75%, 50%) 74%, hsl(300, 75%, 50%) 88%, hsl(360, 75%, 50%) 100%);
+  outline: none;
+}
+.hue-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 3px solid var(--accent);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.35);
+  cursor: pointer;
+}
+.hue-slider::-moz-range-thumb {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 3px solid var(--accent);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.35);
+  cursor: pointer;
+}
+.hue-slider::-moz-range-track {
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #000000 0%, #71717a 6%, hsl(0, 75%, 50%) 10%, hsl(60, 75%, 50%) 26%, hsl(120, 75%, 50%) 42%, hsl(180, 75%, 50%) 58%, hsl(240, 75%, 50%) 74%, hsl(300, 75%, 50%) 88%, hsl(360, 75%, 50%) 100%);
+}
+
 .lightness-slider {
   -webkit-appearance: none;
   appearance: none;
