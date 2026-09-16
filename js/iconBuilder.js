@@ -74,6 +74,17 @@ function hexToRgb(hex) {
   return m ? { r: parseInt(m[1], 16), g: parseInt(m[2], 16), b: parseInt(m[3], 16) } : null;
 }
 
+// Synchronous placeholder (background + monogram, no image loads at all).
+// Used so the manifest/meta tags can carry a valid icon on the very first
+// script tick, before any async glyph fetch — see runInstallView in main.js.
+export function renderPlaceholderIcon(canvas, { bgColor, label }) {
+  const size = canvas.width;
+  const ctx = canvas.getContext('2d');
+  drawBackground(ctx, size, bgColor);
+  drawMonogram(ctx, size, label, bgColor);
+  return canvas.toDataURL('image/png');
+}
+
 // Draws the icon into an existing canvas (used for live mockup previews).
 // Returns true if the real glyph was drawn, false if it fell back to a monogram.
 export async function renderIconToCanvas(canvas, opts) {

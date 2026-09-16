@@ -3,7 +3,7 @@ import { startParticles } from './particles.js';
 import { encodeAppUrl, decodeAppParams, isStandalone } from './appstate.js';
 import { faviconCandidates, firstLoadableFavicon } from './favicon.js';
 import { searchIcons, iconSvgUrl } from './iconify.js';
-import { renderIconToCanvas, buildIconDataUri } from './iconBuilder.js';
+import { renderIconToCanvas, renderPlaceholderIcon, buildIconDataUri } from './iconBuilder.js';
 import { buildManifestDataUri, applyManifestLink, applyIOSMeta } from './manifestBuilder.js';
 
 const $ = (id) => document.getElementById(id);
@@ -64,25 +64,10 @@ function runLaunch(cfg) {
 // Mode: this exact URL is a generated app -> show install instructions.
 // ---------------------------------------------------------------------------
 async function runInstallView(cfg) {
-  showView('install');
-  $('install-app-name').textContent = cfg.name;
-  $('install-app-target').textContent = cfg.targetUrl;
-
-  const canvas = $('install-icon-canvas');
-  await renderIconToCanvas(canvas, iconOptsFor(cfg));
-
-  const iconDataUri = canvas.toDataURL('image/png');
-  const manifestUri = buildManifestDataUri({
-    name: cfg.name,
-    startUrl: location.href,
-    bgColor: cfg.bgColor,
-    fgColor: cfg.fgColor,
-    iconDataUri,
-  });
-  applyManifestLink(manifestUri);
-  applyIOSMeta({ name: cfg.name, bgColor: cfg.bgColor, iconDataUri });
-
-  const plat = platform();
+  // Register this before anything else, and touch the manifest/meta tags
+  // synchronously (no awaits) below: Chrome can fire `beforeinstallprompt`
+  // as soon as it likes, and it must never see the stale default
+  // manifest.json (start_url with no params) instead of this app's own.
   let deferredPrompt = null;
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
@@ -91,6 +76,20 @@ async function runInstallView(cfg) {
     $('install-generic').hidden = true;
   });
 
+  showView('install');
+  $('install-app-name').textContent = cfg.name;
+  $('install-app-target').textContent = cfg.targetUrl;
+
+  const canvas = $('install-icon-canvas');
+  applyForInstall(cfg, renderPlaceholderIcon(canvas, { bgColor: cfg.bgColor, label: cfg.name }));
+
+  // Upgrade to the real icon (favicon/iconify/upload) once it's ready, and
+  // re-apply — browsers pick up manifest link / meta tag changes, but the
+  // start_url above is already correct even if this never finishes in time.
+  await renderIconToCanvas(canvas, iconOptsFor(cfg));
+  applyForInstall(cfg, canvas.toDataURL('image/png'));
+
+  const plat = platform();
   if (plat === 'ios') {
     $('install-ios').hidden = false;
   } else if (plat === 'android') {
@@ -118,6 +117,17 @@ async function runInstallView(cfg) {
   $('btn-install-restart').addEventListener('click', () => {
     location.href = location.pathname;
   });
+}
+
+function applyForInstall(cfg, iconDataUri) {
+  const manifestUri = buildManifestDataUri({
+    name: cfg.name,
+    startUrl: location.href,
+    bgColor: cfg.bgColor,
+    iconDataUri,
+  });
+  applyManifestLink(manifestUri);
+  applyIOSMeta({ name: cfg.name, bgColor: cfg.bgColor, iconDataUri });
 }
 
 function iconOptsFor(cfg) {

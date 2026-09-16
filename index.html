@@ -11,7 +11,12 @@
 <meta name="apple-mobile-web-app-title" content="QR to App" id="meta-apple-title">
 <link rel="apple-touch-icon" href="icons/default-touch-icon.png" id="link-apple-touch-icon">
 <link rel="icon" href="icons/favicon.svg" type="image/svg+xml">
-<link rel="manifest" href="manifest.json" id="link-manifest">
+<!-- No default href: a manifest here is only ever meaningful for a specific
+     generated app, and is injected by js/main.js in install mode. Linking
+     the generic manifest.json by default previously raced Chrome's
+     `beforeinstallprompt` and caused installs to pick up the wrong
+     (paramless) start_url. -->
+<link rel="manifest" id="link-manifest">
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
