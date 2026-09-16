@@ -1,34 +1,59 @@
 import { fetchIconSvgText } from './iconify.js';
 
-// Builds the final home-screen icon entirely client-side: a full-bleed
-// background fill (so it looks right whether or not the OS applies its own
-// adaptive-icon mask) plus the glyph centered in the ~70% "safe zone".
+// Builds the final home-screen icon entirely client-side.
+//
+// "Auto" (favicon) icons are the site's own, already-designed image — drawn
+// near edge-to-edge on a plain white backdrop, not recolored or inset into a
+// safe zone, since that's not ours to restyle. Iconify glyphs and uploads
+// *are* raw glyphs that need a backdrop, so those get the user's background
+// color and are inset into a ~66% "safe zone" (standard maskable-icon
+// guidance) so OS icon masks don't clip them.
 //
 // Recoloring only works reliably for Iconify glyphs (fetched as text, so
-// they're never cross-origin-tainted) and for the user's own upload. A
-// favicon pulled from an arbitrary site is loaded as a plain <img>; if that
-// site doesn't send permissive CORS headers, reading the canvas back throws
-// a SecurityError. We catch that and fall back to a plain monogram tile
-// rather than fail the whole flow.
+// they're never cross-origin-tainted). A favicon pulled from an arbitrary
+// site is loaded as a plain <img>; if that site doesn't send permissive CORS
+// headers, reading the canvas back throws a SecurityError, caught below with
+// a monogram fallback so icon creation never gets stuck on a bad image.
+//
+// Loaded glyphs are cached by their source key so dragging a color slider —
+// which never changes the glyph itself, only how it's composited — redraws
+// from the cached image instead of re-fetching over the network each time.
+const glyphCache = new Map(); // key -> Promise<HTMLImageElement>
 
-async function loadGlyphImage({ sourceType, sourceValue, fgColor }) {
-  if (sourceType === 'iconify' && sourceValue) {
-    const svgText = await fetchIconSvgText(sourceValue, fgColor);
-    const blob = new Blob([svgText], { type: 'image/svg+xml' });
-    const url = URL.createObjectURL(blob);
-    try {
-      return await loadImage(url);
-    } finally {
-      URL.revokeObjectURL(url);
+function glyphCacheKey({ sourceType, sourceValue, fgColor }) {
+  return sourceType === 'iconify' ? `iconify:${sourceValue}:${fgColor}` : `${sourceType}:${sourceValue}`;
+}
+
+function loadGlyphImage(opts) {
+  const { sourceType, sourceValue, fgColor } = opts;
+  if (!sourceValue) return Promise.reject(new Error('No icon source available'));
+
+  const key = glyphCacheKey(opts);
+  if (glyphCache.has(key)) return glyphCache.get(key);
+
+  const promise = (async () => {
+    if (sourceType === 'iconify') {
+      const svgText = await fetchIconSvgText(sourceValue, fgColor);
+      const blob = new Blob([svgText], { type: 'image/svg+xml' });
+      const url = URL.createObjectURL(blob);
+      try {
+        return await loadImage(url);
+      } finally {
+        URL.revokeObjectURL(url);
+      }
     }
-  }
-  if (sourceType === 'upload' && sourceValue) {
-    return loadImage(sourceValue); // data URI, always same-origin-safe
-  }
-  if (sourceType === 'favicon' && sourceValue) {
-    return loadImage(sourceValue, true); // may taint the canvas, handled by caller
-  }
-  throw new Error('No icon source available');
+    if (sourceType === 'upload') {
+      return loadImage(sourceValue); // data URI, always same-origin-safe
+    }
+    if (sourceType === 'favicon') {
+      return loadImage(sourceValue, true); // may taint the canvas, handled by caller
+    }
+    throw new Error(`Unknown icon source type: ${sourceType}`);
+  })();
+
+  glyphCache.set(key, promise);
+  promise.catch(() => glyphCache.delete(key)); // don't cache failures
+  return promise;
 }
 
 function loadImage(src, crossOrigin) {
@@ -41,20 +66,20 @@ function loadImage(src, crossOrigin) {
   });
 }
 
-function drawBackground(ctx, size, bgColor) {
+function drawFill(ctx, size, color) {
   ctx.clearRect(0, 0, size, size);
-  ctx.fillStyle = bgColor;
+  ctx.fillStyle = color;
   ctx.fillRect(0, 0, size, size);
 }
 
-function drawGlyph(ctx, size, img) {
-  const safe = size * 0.66;
-  const offset = (size - safe) / 2;
+function drawContained(ctx, size, img, coverage) {
+  const box = size * coverage;
+  const offset = (size - box) / 2;
   const ratio = img.width && img.height ? img.width / img.height : 1;
-  let dw = safe, dh = safe;
-  if (ratio > 1) dh = safe / ratio;
-  else if (ratio < 1) dw = safe * ratio;
-  ctx.drawImage(img, offset + (safe - dw) / 2, offset + (safe - dh) / 2, dw, dh);
+  let dw = box, dh = box;
+  if (ratio > 1) dh = box / ratio;
+  else if (ratio < 1) dw = box * ratio;
+  ctx.drawImage(img, offset + (box - dw) / 2, offset + (box - dh) / 2, dw, dh);
 }
 
 function drawMonogram(ctx, size, label, bgColor) {
@@ -80,28 +105,31 @@ function hexToRgb(hex) {
 export function renderPlaceholderIcon(canvas, { bgColor, label }) {
   const size = canvas.width;
   const ctx = canvas.getContext('2d');
-  drawBackground(ctx, size, bgColor);
+  drawFill(ctx, size, bgColor);
   drawMonogram(ctx, size, label, bgColor);
   return canvas.toDataURL('image/png');
 }
 
-// Draws the icon into an existing canvas (used for live mockup previews).
-// Returns true if the real glyph was drawn, false if it fell back to a monogram.
+// Draws the icon into an existing canvas (used for both the live mockup
+// previews and the final install icon). Returns true if the real glyph was
+// drawn, false if it fell back to a monogram.
 export async function renderIconToCanvas(canvas, opts) {
   const size = canvas.width;
   const ctx = canvas.getContext('2d');
-  drawBackground(ctx, size, opts.bgColor);
+  const isAuto = opts.sourceType === 'favicon';
+
+  drawFill(ctx, size, isAuto ? '#ffffff' : opts.bgColor);
   try {
     const img = await loadGlyphImage(opts);
-    drawGlyph(ctx, size, img);
-    if (opts.sourceType === 'favicon') {
+    drawContained(ctx, size, img, isAuto ? 0.94 : 0.66);
+    if (isAuto) {
       // Force a pixel read now so a tainted canvas fails here, inside the
       // try block, rather than later when the caller calls toDataURL().
       ctx.getImageData(0, 0, 1, 1);
     }
     return true;
   } catch {
-    drawBackground(ctx, size, opts.bgColor);
+    drawFill(ctx, size, opts.bgColor);
     drawMonogram(ctx, size, opts.label, opts.bgColor);
     return false;
   }
@@ -117,7 +145,7 @@ export async function buildIconDataUri(opts, size = 512) {
   } catch {
     // Tainted despite our earlier check (rare race) — rebuild as a monogram.
     const ctx = canvas.getContext('2d');
-    drawBackground(ctx, size, opts.bgColor);
+    drawFill(ctx, size, opts.bgColor);
     drawMonogram(ctx, size, opts.label, opts.bgColor);
     return canvas.toDataURL('image/png');
   }

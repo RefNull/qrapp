@@ -73,7 +73,7 @@ async function runInstallView(cfg) {
     e.preventDefault();
     deferredPrompt = e;
     $('install-android').hidden = false;
-    $('install-generic').hidden = true;
+    $('install-android-fallback').hidden = true;
   });
 
   showView('install');
@@ -93,14 +93,14 @@ async function runInstallView(cfg) {
   if (plat === 'ios') {
     $('install-ios').hidden = false;
   } else if (plat === 'android') {
-    // Show the button; if beforeinstallprompt never fires within a short
-    // window (criteria not met, or already installed), fall back to the
-    // generic "use your browser's menu" instructions.
+    // Show the native-prompt button optimistically; if beforeinstallprompt
+    // never fires within a short window (criteria not met, or already
+    // installed), fall back to manual Chrome-menu instructions.
     $('install-android').hidden = false;
     setTimeout(() => {
       if (!deferredPrompt) {
         $('install-android').hidden = true;
-        $('install-generic').hidden = false;
+        $('install-android-fallback').hidden = false;
       }
     }, 1200);
   } else {
@@ -150,8 +150,12 @@ function runScanFlow() {
   const state = {
     targetUrl: '',
     name: '',
-    bgColor: hueToHex(215),
-    fgColor: hueToHex(0, 0, 100),
+    bgHue: 215,
+    bgLight: 45,
+    bgColor: hueToHex(215, 65, 45),
+    fgHue: 0,
+    fgLight: 55,
+    fgColor: hueToHex(0, 65, 55),
     iconSource: 'favicon',
     iconValue: '',
     iconUpload: '',
@@ -180,15 +184,40 @@ function runScanFlow() {
   function enterPreview(url) {
     state.targetUrl = url;
     try {
-      state.name = new URL(url).hostname.replace(/^www\./, '');
+      const host = new URL(url).hostname.replace(/^www\./, '');
+      state.name = host;
+      $('preview-host').textContent = host;
     } catch {
       state.name = 'App';
+      $('preview-host').textContent = 'App';
     }
-    $('preview-frame').src = url;
     $('preview-open-link').href = url;
     $('preview-url').textContent = url;
+
+    // Detect the favicon once here so both the preview card and the
+    // customize step's "Auto" icon reuse the same result.
+    loadFaviconCandidates();
+
+    // The live iframe is opt-in (see btn-preview-toggle below): many sites
+    // block being framed entirely, and a blank box by default looks broken.
+    $('preview-frame-wrap').hidden = true;
+    $('preview-frame').removeAttribute('src');
+    $('btn-preview-toggle').textContent = 'Show live preview';
+    previewFrameLoaded = false;
+
     showView('preview');
   }
+
+  let previewFrameLoaded = false;
+  $('btn-preview-toggle').addEventListener('click', () => {
+    const wrap = $('preview-frame-wrap');
+    wrap.hidden = !wrap.hidden;
+    if (!wrap.hidden && !previewFrameLoaded) {
+      $('preview-frame').src = state.targetUrl;
+      previewFrameLoaded = true;
+    }
+    $('btn-preview-toggle').textContent = wrap.hidden ? 'Show live preview' : 'Hide live preview';
+  });
 
   $('btn-preview-back').addEventListener('click', () => {
     showView('scan');
@@ -200,12 +229,12 @@ function runScanFlow() {
 
   // -------------------- Customize --------------------
   let iconify = { selectedId: '', searchTimer: null };
-  let mockupTimer = null;
+  let mockupRaf = null;
 
   function enterCustomize() {
     $('input-name').value = state.name;
+    updateColorFieldVisibility();
     updateSwatches();
-    loadFaviconCandidates();
     scheduleMockupUpdate();
     showView('customize');
   }
@@ -217,40 +246,37 @@ function runScanFlow() {
     scheduleMockupUpdate();
   });
 
+  // Background color only makes sense for the composited sources (Iconify /
+  // upload) — "Auto" uses the site's own icon untouched. Icon color only
+  // applies to Iconify glyphs, which is the only source we can recolor.
+  function updateColorFieldVisibility() {
+    $('field-bg-color').hidden = state.iconSource === 'favicon';
+    $('field-fg-color').hidden = state.iconSource !== 'iconify';
+  }
+
   // icon source tabs
   document.querySelectorAll('#icon-source-tabs .tab').forEach((tab) => {
     tab.addEventListener('click', () => {
       document.querySelectorAll('#icon-source-tabs .tab').forEach((t) => t.classList.remove('active'));
       tab.classList.add('active');
-      const source = tab.dataset.source;
-      state.iconSource = source;
-      ['favicon', 'iconify', 'upload'].forEach((s) => { $(`panel-${s}`).hidden = s !== source; });
-      $('field-fg-color').style.opacity = source === 'iconify' ? '1' : '0.5';
+      state.iconSource = tab.dataset.source;
+      ['favicon', 'iconify', 'upload'].forEach((s) => { $(`panel-${s}`).hidden = s !== state.iconSource; });
+      updateColorFieldVisibility();
       scheduleMockupUpdate();
     });
   });
 
-  let faviconCands = [];
-  let faviconIdx = 0;
+  // Detected once per scan (see enterPreview) and reused as the "Auto" icon;
+  // there's no manual re-pick control since the preview card already shows
+  // exactly what was found.
   async function loadFaviconCandidates() {
-    faviconCands = faviconCandidates(state.targetUrl);
-    faviconIdx = 0;
-    const best = await firstLoadableFavicon(faviconCands);
+    const best = await firstLoadableFavicon(faviconCandidates(state.targetUrl));
     if (best) {
-      faviconIdx = faviconCands.indexOf(best);
-      setFavicon(best);
+      state.iconValue = best;
+      $('preview-favicon').src = best;
+      scheduleMockupUpdate();
     }
   }
-  function setFavicon(url) {
-    state.iconValue = url;
-    $('favicon-preview').src = url;
-    scheduleMockupUpdate();
-  }
-  $('btn-favicon-cycle').addEventListener('click', () => {
-    if (!faviconCands.length) return;
-    faviconIdx = (faviconIdx + 1) % faviconCands.length;
-    setFavicon(faviconCands[faviconIdx]);
-  });
 
   // iconify search
   $('iconify-search').addEventListener('input', (e) => {
@@ -294,17 +320,24 @@ function runScanFlow() {
     reader.readAsDataURL(file);
   });
 
-  // colors
-  $('slider-bg-hue').addEventListener('input', (e) => {
-    state.bgColor = hueToHex(Number(e.target.value));
+  // colors — hue + lightness sliders together cover the full range
+  // (including white and black at the lightness extremes, unreachable from
+  // hue alone at a fixed saturation).
+  function recomputeBg() {
+    state.bgColor = hueToHex(state.bgHue, 65, state.bgLight);
     updateSwatches();
     scheduleMockupUpdate();
-  });
-  $('slider-fg-hue').addEventListener('input', (e) => {
-    state.fgColor = hueToHex(Number(e.target.value), 75, 55);
+  }
+  function recomputeFg() {
+    state.fgColor = hueToHex(state.fgHue, 65, state.fgLight);
     updateSwatches();
     scheduleMockupUpdate();
-  });
+  }
+  $('slider-bg-hue').addEventListener('input', (e) => { state.bgHue = Number(e.target.value); recomputeBg(); });
+  $('slider-bg-light').addEventListener('input', (e) => { state.bgLight = Number(e.target.value); recomputeBg(); });
+  $('slider-fg-hue').addEventListener('input', (e) => { state.fgHue = Number(e.target.value); recomputeFg(); });
+  $('slider-fg-light').addEventListener('input', (e) => { state.fgLight = Number(e.target.value); recomputeFg(); });
+
   function updateSwatches() {
     $('swatch-bg').style.background = state.bgColor;
     $('swatch-fg').style.background = state.fgColor;
@@ -314,9 +347,15 @@ function runScanFlow() {
     state.transition = e.target.value;
   });
 
+  // Coalesce to at most one redraw per frame — the underlying glyph is
+  // cached (see iconBuilder.js), so this reads as real-time even while
+  // actively dragging a slider.
   function scheduleMockupUpdate() {
-    clearTimeout(mockupTimer);
-    mockupTimer = setTimeout(updateMockups, 120);
+    if (mockupRaf) return;
+    mockupRaf = requestAnimationFrame(() => {
+      mockupRaf = null;
+      updateMockups();
+    });
   }
   async function updateMockups() {
     const opts = iconOptsFor(state);

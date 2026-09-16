@@ -48,13 +48,21 @@
       <span class="topbar-title">Preview</span>
       <span class="topbar-spacer"></span>
     </header>
-    <div class="preview-frame-wrap">
+    <div class="preview-card">
+      <img id="preview-favicon" alt="" width="40" height="40">
+      <div class="preview-card-text">
+        <span id="preview-host"></span>
+        <span id="preview-url"></span>
+      </div>
+    </div>
+
+    <div class="preview-frame-wrap" id="preview-frame-wrap" hidden>
       <iframe id="preview-frame" title="Site preview" sandbox="allow-scripts allow-same-origin allow-forms"></iframe>
     </div>
-    <p class="hint">If the preview looks blank, the site may block previews &mdash; that's fine, the installed app will still open it directly.
-      <a id="preview-open-link" href="#" target="_blank" rel="noopener">Open link to check</a>
+    <button id="btn-preview-toggle" class="btn btn-secondary" type="button">Show live preview</button>
+    <p class="hint">Some sites block embedded previews for security &mdash; that's expected and won't affect the installed app.
+      <a id="preview-open-link" href="#" target="_blank" rel="noopener">Open in a new tab</a> to check the real page.
     </p>
-    <div class="url-pill"><span id="preview-url"></span></div>
     <button id="btn-preview-next" class="btn btn-primary">Customize app &rarr;</button>
   </section>
 
@@ -66,63 +74,70 @@
       <span class="topbar-spacer"></span>
     </header>
 
-    <div class="customize-scroll">
-      <div class="icon-mockups">
-        <div class="mockup mockup-ios">
-          <canvas id="mockup-ios-canvas" width="120" height="120"></canvas>
-          <span>iOS</span>
-        </div>
-        <div class="mockup mockup-android">
-          <canvas id="mockup-android-canvas" width="120" height="120"></canvas>
-          <span>Android</span>
-        </div>
+    <div class="icon-mockups">
+      <div class="mockup mockup-ios">
+        <canvas id="mockup-ios-canvas" width="120" height="120"></canvas>
+        <span>iOS</span>
       </div>
+      <div class="mockup mockup-android">
+        <canvas id="mockup-android-canvas" width="120" height="120"></canvas>
+        <span>Android</span>
+      </div>
+    </div>
 
+    <div class="customize-scroll">
       <label class="field">
-        <span>App name</span>
+        <span>Name</span>
         <input id="input-name" type="text" maxlength="30" placeholder="My App">
       </label>
 
-      <div class="tabs" id="icon-source-tabs">
-        <button class="tab active" data-source="favicon">Auto</button>
-        <button class="tab" data-source="iconify">Icon library</button>
-        <button class="tab" data-source="upload">Upload</button>
-      </div>
-
-      <div class="tab-panel" id="panel-favicon">
-        <div class="favicon-row">
-          <img id="favicon-preview" alt="" width="48" height="48">
-          <button id="btn-favicon-cycle" class="btn btn-tiny" type="button">Try another</button>
-        </div>
-        <p class="field-hint">Pulled automatically from the site you scanned.</p>
-      </div>
-
-      <div class="tab-panel" id="panel-iconify" hidden>
-        <input id="iconify-search" type="text" placeholder="Search icons&hellip; e.g. calendar">
-        <div id="iconify-results" class="iconify-grid"></div>
-        <p class="field-hint" id="iconify-status"></p>
-      </div>
-
-      <div class="tab-panel" id="panel-upload" hidden>
-        <input id="upload-input" type="file" accept="image/*">
-        <p class="field-hint">Uses your image as-is on the background color below.</p>
-      </div>
-
       <div class="field">
+        <span>Image</span>
+        <div class="tabs" id="icon-source-tabs">
+          <button class="tab active" data-source="favicon">Auto</button>
+          <button class="tab" data-source="iconify">Icon library</button>
+          <button class="tab" data-source="upload">Upload</button>
+        </div>
+
+        <div class="tab-panel" id="panel-favicon"></div>
+
+        <div class="tab-panel" id="panel-iconify" hidden>
+          <input id="iconify-search" type="text" placeholder="Search icons&hellip; e.g. calendar">
+          <div id="iconify-results" class="iconify-grid"></div>
+          <p class="field-hint" id="iconify-status"></p>
+        </div>
+
+        <div class="tab-panel" id="panel-upload" hidden>
+          <input id="upload-input" type="file" accept="image/*">
+        </div>
+      </div>
+
+      <div class="field" id="field-bg-color" hidden>
         <span>Background color</span>
         <div class="color-row">
+          <span class="slider-label">Hue</span>
           <input id="slider-bg-hue" type="range" min="0" max="360" value="215">
           <span class="swatch" id="swatch-bg"></span>
         </div>
+        <div class="color-row">
+          <span class="slider-label">Shade</span>
+          <input id="slider-bg-light" type="range" min="0" max="100" value="45" class="lightness-slider" aria-label="Background lightness">
+          <span class="swatch-spacer"></span>
+        </div>
       </div>
 
-      <div class="field" id="field-fg-color">
+      <div class="field" id="field-fg-color" hidden>
         <span>Icon color</span>
         <div class="color-row">
+          <span class="slider-label">Hue</span>
           <input id="slider-fg-hue" type="range" min="0" max="360" value="0">
           <span class="swatch" id="swatch-fg"></span>
         </div>
-        <p class="field-hint" id="fg-hint">Applies to Icon library glyphs. Auto/uploaded icons keep their original colors.</p>
+        <div class="color-row">
+          <span class="slider-label">Shade</span>
+          <input id="slider-fg-light" type="range" min="0" max="100" value="55" class="lightness-slider" aria-label="Icon color lightness">
+          <span class="swatch-spacer"></span>
+        </div>
       </div>
 
       <div class="field">
@@ -151,16 +166,26 @@
       <p class="field-hint">Chrome will ask you to confirm.</p>
     </div>
 
+    <div id="install-android-fallback" class="install-block" hidden>
+      <ol class="ios-steps">
+        <li>Tap <span class="step-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg></span> in Chrome's toolbar (top right)</li>
+        <li>Tap <strong>Add to Home screen</strong> (sometimes shown as <strong>Install app</strong>)</li>
+        <li>Tap <strong>Add</strong> / <strong>Install</strong> to confirm</li>
+      </ol>
+    </div>
+
     <div id="install-ios" class="install-block" hidden>
       <ol class="ios-steps">
-        <li>Tap the <strong>Share</strong> button <span class="ios-icon">&#x2191;&#x25A1;</span> in Safari's toolbar</li>
-        <li>Scroll down and tap <strong>Add to Home Screen</strong></li>
-        <li>Tap <strong>Add</strong> in the top right</li>
+        <li>Tap <span class="step-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></span> next to the address bar &mdash; or Share <span class="step-icon inline" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 8l5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg></span> directly, if that's what your Safari layout shows</li>
+        <li>Tap Share <span class="step-icon inline" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 8l5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg></span></li>
+        <li>Scroll down and tap <strong>Add to Home Screen</strong>. Not listed? Tap <strong>Edit Actions</strong> at the bottom and add it.</li>
+        <li>Turn on <strong>Open as Web App</strong> if you see it, then tap <strong>Add</strong></li>
       </ol>
       <div class="ios-coach">
         <div class="coach-arrow">&#8595;</div>
-        <p>Look for the Share icon at the bottom (or top) of Safari</p>
+        <p>Look for the Share icon in Safari's toolbar</p>
       </div>
+      <a class="guide-link" href="https://support.apple.com/en-gb/guide/iphone/iphea86e5236/ios" target="_blank" rel="noopener">Apple's guide to Add to Home Screen &rarr;</a>
     </div>
 
     <div id="install-generic" class="install-block" hidden>
