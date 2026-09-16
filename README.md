@@ -1,61 +1,45 @@
 # QR to App
 
-A zero-backend Progressive Web App that scans a QR code and turns the page it
-points to into a home-screen icon with a custom name, icon, and colors —
-without needing a native app, an app store, or a server.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+![Backend](https://img.shields.io/badge/backend-none-brightgreen.svg)
+![Type](https://img.shields.io/badge/type-PWA-blue.svg)
+
+Scans a QR code and turns the page it points to into a home-screen app — custom name, icon, and colors — without a native app, an app store, or a server.
 
 ## How it works
 
-Everything is static files at the repo root — no backend, no database. State
-for each generated app (target URL, name, icon, colors, launch transition) is
-encoded entirely in the page's own URL query string, so the exact same static
-page can act as three different things depending on how it's opened:
+The entire thing is static files served over HTTPS. State for each generated app (target URL, name, icon, colors, launch transition) lives in the page's own URL rather than a database, so the exact same page behaves differently depending on how it's opened:
 
-1. **Fresh open, no params** — the scanner: camera-based QR detection (native
-   `BarcodeDetector` where available, falling back to vendored `jsQR` for
-   Safari/iOS), a preview of the scanned page, and an icon/color customizer.
-2. **Opened with params, in a regular browser tab** — the install view. On
-   Android/Chrome it injects a `data:` URI Web App Manifest (icons and all)
-   so Chrome's native install prompt picks it up; on iOS it sets the
-   `apple-touch-icon`/theme meta tags on the page itself, since Safari reads
-   those directly from whatever's on screen when you tap Share → Add to Home
-   Screen (there's no API for a third-party app or page to trigger that step
-   automatically on iOS).
-3. **Opened with params, already installed (standalone display mode)** —
-   redirects straight into the target site, with an optional brief branded
-   transition first.
+| Opened as... | Behavior |
+| :--- | :--- |
+| Fresh, no params | **Scanner** — camera QR detection (native `BarcodeDetector`, falling back to vendored `jsQR` on Safari/iOS), a preview of the scanned page, and an icon/color customizer. |
+| With params, in a browser tab | **Install view** — injects a `data:` URI manifest for Chrome's install prompt on Android, or sets `apple-touch-icon`/theme meta tags for Safari's native Add to Home Screen on iOS. |
+| With params, already installed (standalone) | **Launch** — redirects straight into the target site, with an optional brief branded transition. |
 
-See `js/appstate.js` for the exact URL param schema.
-
-## Deploying
-
-Any static host works (GitHub Pages, Cloudflare Pages, Netlify, etc.) —
-just serve this repo's contents over HTTPS. No build step, no server code.
-
-For GitHub Pages: Settings → Pages → Source: "Deploy from a branch" →
-Branch: `main`, folder `/ (root)`.
-
-## Known open item — needs a real-device check
-
-Chrome's support for `data:` URI manifests (including inline base64 icons)
-is a documented, reliable pattern and is what Android install relies on here.
-The one piece that hasn't been verified on real hardware is whether iOS
-Safari reliably captures a dynamically-set `apple-touch-icon` (pointing at a
-generated `data:` PNG) at the moment "Add to Home Screen" is tapped, across
-current iOS versions. If it turns out to be unreliable on some versions, the
-fallback is to prefer the target site's own favicon URL directly (already the
-default "Auto" icon source) rather than a composited/recolored one for iOS.
+See [`js/appstate.js`](js/appstate.js) for the exact URL param schema.
 
 ## Icon sourcing
 
-- **Auto** (default): pulls the scanned site's favicon via Google's public
-  favicon lookup service, with `/apple-touch-icon.png` and `/favicon.ico` as
-  fallbacks. Not recolorable (arbitrary cross-origin images can't be safely
-  read back off a canvas), but composited onto your chosen background color.
-- **Icon library**: search via the free, keyless [Iconify](https://iconify.design)
-  API — these fully support the icon color slider.
-- **Upload**: use your own image, composited onto the background color.
+| Source | Recolorable | Notes |
+| :--- | :--- | :--- |
+| **Auto** (default) | No | Pulls the scanned site's favicon via Google's public favicon lookup, with `/apple-touch-icon.png` and `/favicon.ico` as fallbacks. |
+| **Icon library** | Yes | Search via the free, keyless [Iconify](https://iconify.design) API. |
+| **Upload** | No | Composited onto your chosen background color as-is. |
 
-If none of these can be loaded or drawn, the icon falls back to a simple
-monogram tile (first letter of the app name) so app creation never gets
-stuck on a bad image.
+If nothing loads or draws, the icon falls back to a monogram tile so app creation never gets stuck on a bad image.
+
+## Deploying
+
+Any static host works — GitHub Pages, Cloudflare Pages, Netlify. No build step, no server code.
+
+This branch (`main`) is the live deploy target: Settings → Pages → Source → `main`, folder `/(root)`. Ongoing development happens on `claude/qr-web-app-installer-9t169k`, where the same app lives under `app/` for tidier repo organization; changes land here flattened to the root, since GitHub Pages' "deploy from branch" only serves `/(root)` or `/docs`.
+
+## Known limitations
+
+- **iOS touch-icon reliability is unverified on real hardware.** Chrome's `data:` URI manifest support is a documented pattern; whether Safari reliably captures a dynamically-set `apple-touch-icon` at Add-to-Home-Screen time across current iOS versions still needs a device check. Fallback: prefer the target site's own favicon URL directly.
+- **Installed standalone apps on iOS get their own cookie jar**, separate from Safari — a site that requires login may prompt again on first launch.
+- **Arbitrary favicons can't be recolored.** Reading pixels back off a cross-origin `<img>` without permissive CORS headers taints the canvas, so only Iconify glyphs and uploads support the icon color slider.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
