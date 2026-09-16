@@ -32,7 +32,7 @@ If nothing loads or draws, the icon falls back to a monogram tile so app creatio
 
 Any static host works — GitHub Pages, Cloudflare Pages, Netlify. No build step, no server code.
 
-This branch (`main`) is the live deploy target: Settings → Pages → Source → `main`, folder `/(root)`. Ongoing development happens on `claude/qr-web-app-installer-9t169k`, where the same app lives under `app/` for tidier repo organization; changes land here flattened to the root, since GitHub Pages' "deploy from branch" only serves `/(root)` or `/docs`.
+For GitHub Pages: Settings → Pages → Source → `main`, folder `/(root)`. Everything lives at the repo root rather than a subfolder since "deploy from branch" only serves `/(root)` or `/docs`.
 
 ## Known limitations
 
