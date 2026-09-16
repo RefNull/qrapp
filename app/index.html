@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<title>QR to App</title>
+<meta name="description" content="Scan a QR code and turn it into a home screen app.">
+<meta name="theme-color" content="#0b0d12" id="meta-theme-color">
+<meta name="apple-mobile-web-app-capable" content="yes" id="meta-apple-capable">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="QR to App" id="meta-apple-title">
+<link rel="apple-touch-icon" href="icons/default-touch-icon.png" id="link-apple-touch-icon">
+<link rel="icon" href="icons/favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.json" id="link-manifest">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div id="app">
+
+  <!-- SCAN VIEW -->
+  <section id="view-scan" class="view" hidden>
+    <canvas id="particles" class="particles"></canvas>
+    <div class="scan-stage">
+      <video id="camera" playsinline muted autoplay></video>
+      <div class="reticle">
+        <span class="corner tl"></span><span class="corner tr"></span>
+        <span class="corner bl"></span><span class="corner br"></span>
+        <div class="scan-line"></div>
+      </div>
+    </div>
+    <div class="scan-copy">
+      <h1>Point at a QR code</h1>
+      <p id="scan-status">Looking for a code&hellip;</p>
+    </div>
+    <button id="btn-camera-retry" class="btn btn-secondary" hidden>Enable camera</button>
+  </section>
+
+  <!-- PREVIEW VIEW -->
+  <section id="view-preview" class="view" hidden>
+    <header class="topbar">
+      <button class="btn-icon" id="btn-preview-back" aria-label="Back">&larr;</button>
+      <span class="topbar-title">Preview</span>
+      <span class="topbar-spacer"></span>
+    </header>
+    <div class="preview-frame-wrap">
+      <iframe id="preview-frame" title="Site preview" sandbox="allow-scripts allow-same-origin allow-forms"></iframe>
+    </div>
+    <p class="hint">If the preview looks blank, the site may block previews &mdash; that's fine, the installed app will still open it directly.
+      <a id="preview-open-link" href="#" target="_blank" rel="noopener">Open link to check</a>
+    </p>
+    <div class="url-pill"><span id="preview-url"></span></div>
+    <button id="btn-preview-next" class="btn btn-primary">Customize app &rarr;</button>
+  </section>
+
+  <!-- CUSTOMIZE VIEW -->
+  <section id="view-customize" class="view" hidden>
+    <header class="topbar">
+      <button class="btn-icon" id="btn-customize-back" aria-label="Back">&larr;</button>
+      <span class="topbar-title">Customize</span>
+      <span class="topbar-spacer"></span>
+    </header>
+
+    <div class="customize-scroll">
+      <div class="icon-mockups">
+        <div class="mockup mockup-ios">
+          <canvas id="mockup-ios-canvas" width="120" height="120"></canvas>
+          <span>iOS</span>
+        </div>
+        <div class="mockup mockup-android">
+          <canvas id="mockup-android-canvas" width="120" height="120"></canvas>
+          <span>Android</span>
+        </div>
+      </div>
+
+      <label class="field">
+        <span>App name</span>
+        <input id="input-name" type="text" maxlength="30" placeholder="My App">
+      </label>
+
+      <div class="tabs" id="icon-source-tabs">
+        <button class="tab active" data-source="favicon">Auto</button>
+        <button class="tab" data-source="iconify">Icon library</button>
+        <button class="tab" data-source="upload">Upload</button>
+      </div>
+
+      <div class="tab-panel" id="panel-favicon">
+        <div class="favicon-row">
+          <img id="favicon-preview" alt="" width="48" height="48">
+          <button id="btn-favicon-cycle" class="btn btn-tiny" type="button">Try another</button>
+        </div>
+        <p class="field-hint">Pulled automatically from the site you scanned.</p>
+      </div>
+
+      <div class="tab-panel" id="panel-iconify" hidden>
+        <input id="iconify-search" type="text" placeholder="Search icons&hellip; e.g. calendar">
+        <div id="iconify-results" class="iconify-grid"></div>
+        <p class="field-hint" id="iconify-status"></p>
+      </div>
+
+      <div class="tab-panel" id="panel-upload" hidden>
+        <input id="upload-input" type="file" accept="image/*">
+        <p class="field-hint">Uses your image as-is on the background color below.</p>
+      </div>
+
+      <div class="field">
+        <span>Background color</span>
+        <div class="color-row">
+          <input id="slider-bg-hue" type="range" min="0" max="360" value="215">
+          <span class="swatch" id="swatch-bg"></span>
+        </div>
+      </div>
+
+      <div class="field" id="field-fg-color">
+        <span>Icon color</span>
+        <div class="color-row">
+          <input id="slider-fg-hue" type="range" min="0" max="360" value="0">
+          <span class="swatch" id="swatch-fg"></span>
+        </div>
+        <p class="field-hint" id="fg-hint">Applies to Icon library glyphs. Auto/uploaded icons keep their original colors.</p>
+      </div>
+
+      <div class="field">
+        <span>Launch transition</span>
+        <select id="select-transition">
+          <option value="instant">Instant</option>
+          <option value="fade" selected>Fade</option>
+          <option value="slide">Slide up</option>
+        </select>
+      </div>
+    </div>
+
+    <button id="btn-customize-next" class="btn btn-primary">Create app &rarr;</button>
+  </section>
+
+  <!-- INSTALL VIEW -->
+  <section id="view-install" class="view" hidden>
+    <div class="install-hero">
+      <canvas id="install-icon-canvas" width="160" height="160"></canvas>
+      <h1 id="install-app-name">App</h1>
+      <p id="install-app-target"></p>
+    </div>
+
+    <div id="install-android" class="install-block" hidden>
+      <button id="btn-install-android" class="btn btn-primary">Add to Home Screen</button>
+      <p class="field-hint">Chrome will ask you to confirm.</p>
+    </div>
+
+    <div id="install-ios" class="install-block" hidden>
+      <ol class="ios-steps">
+        <li>Tap the <strong>Share</strong> button <span class="ios-icon">&#x2191;&#x25A1;</span> in Safari's toolbar</li>
+        <li>Scroll down and tap <strong>Add to Home Screen</strong></li>
+        <li>Tap <strong>Add</strong> in the top right</li>
+      </ol>
+      <div class="ios-coach">
+        <div class="coach-arrow">&#8595;</div>
+        <p>Look for the Share icon at the bottom (or top) of Safari</p>
+      </div>
+    </div>
+
+    <div id="install-generic" class="install-block" hidden>
+      <p>Open this page in Safari (iOS) or Chrome (Android) to install it as an app.</p>
+    </div>
+
+    <button id="btn-install-restart" class="btn btn-secondary">Scan another code</button>
+  </section>
+
+</div>
+
+<script src="lib/jsQR.min.js"></script>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
