@@ -1,10 +1,10 @@
-import { Scanner } from './scanner.js';
-import { startParticles } from './particles.js';
-import { encodeAppUrl, decodeAppParams, isStandalone, normalizeUrl } from './appstate.js';
-import { faviconCandidates, firstLoadableFavicon } from './favicon.js';
-import { searchIcons, iconSvgUrl } from './iconify.js';
-import { renderIconToCanvas, renderPlaceholderIcon, buildIconDataUri } from './iconBuilder.js';
-import { buildManifestDataUri, applyManifestLink, applyIOSMeta } from './manifestBuilder.js';
+import { Scanner } from './scanner.js?v=11';
+import { startParticles } from './particles.js?v=11';
+import { encodeAppUrl, decodeAppParams, isStandalone, normalizeUrl } from './appstate.js?v=11';
+import { faviconCandidates, firstLoadableFavicon } from './favicon.js?v=11';
+import { searchIcons, iconSvgUrl } from './iconify.js?v=11';
+import { renderIconToCanvas, renderPlaceholderIcon, buildIconDataUri } from './iconBuilder.js?v=11';
+import { buildManifestDataUri, applyManifestLink, applyIOSMeta } from './manifestBuilder.js?v=11';
 
 const $ = (id) => document.getElementById(id);
 const views = ['scan', 'preview', 'customize', 'install'].reduce((m, k) => {
@@ -66,12 +66,36 @@ window.addEventListener('beforeinstallprompt', (e) => {
   if (sheetFallback) sheetFallback.hidden = true;
 });
 
+// A beforeinstallprompt event can only be used once, so it is cleared after
+// showing regardless of what the user chose. Chrome does not reliably re-fire
+// it in the same page session, so if the user dismissed the dialog the primary
+// button would silently do nothing from then on — swap in the manual steps.
+async function showChromeInstallPrompt() {
+  if (!deferredInstallPrompt) return;
+  deferredInstallPrompt.prompt();
+  const choice = await deferredInstallPrompt.userChoice;
+  deferredInstallPrompt = null;
+  if (choice?.outcome !== 'accepted') showAndroidManualFallback();
+}
+
+function showAndroidManualFallback() {
+  if (platform() !== 'android') return;
+  for (const [primaryId, fallbackId] of [
+    ['install-android', 'install-android-fallback'],
+    ['sheet-android-block', 'sheet-android-fallback'],
+  ]) {
+    const primary = $(primaryId);
+    const fallback = $(fallbackId);
+    if (primary) primary.hidden = true;
+    if (fallback) fallback.hidden = false;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Entry: figure out which of the three modes this page load is.
 // ---------------------------------------------------------------------------
 const searchParams = new URLSearchParams(location.search);
 const params = decodeAppParams(searchParams);
-const hasLaunchParam = searchParams.has('launch');
 const isCreatedInThisSession = (() => {
   try {
     return sessionStorage.getItem('qrapp_created') === '1';
@@ -79,16 +103,20 @@ const isCreatedInThisSession = (() => {
     return false;
   }
 })();
-// Immediate launcher mode: only when opened as an installed home-screen app
-const isLaunchMode = Boolean(params && isStandalone() && !isCreatedInThisSession);
+// Immediate launcher mode: only when opened as an installed home-screen app.
+// `launch=1` is carried by the manifest start_url and nothing else, so it is a
+// second signal for the cases where an Android WebAPK opens without reporting
+// `display-mode: standalone` — without it those users land on the install page
+// instead of their app.
+const isLaunchMode = Boolean(
+  params && (isStandalone() || searchParams.has('launch')) && !isCreatedInThisSession
+);
 
-if (params && isLaunchMode) {
-  runLaunch(params);
-} else if (params) {
-  runInstallView(params);
-} else {
-  runScanFlow();
-}
+// NOTE: the actual dispatch happens in boot() at the very bottom of this
+// module. Calling it here would run runInstallView() while the module-level
+// `let` bindings it assigns (activeInstallCfg, installViewInitialized) are
+// still in their temporal dead zone, throwing a ReferenceError and leaving a
+// blank page for anyone opening a shared install link.
 
 // ---------------------------------------------------------------------------
 // Mode: launched from an installed home screen icon -> redirect immediately.
@@ -131,8 +159,11 @@ async function runInstallView(cfg) {
   // Upgrade to the real icon (favicon/iconify/upload) once it's ready, and
   // re-apply — browsers pick up manifest link / meta tag changes, but the
   // start_url above is already correct even if this never finishes in time.
-  await renderIconToCanvas(canvas, iconOptsFor(cfg));
-  applyForInstall(cfg, canvas.toDataURL('image/png'));
+  const opts = iconOptsFor(cfg);
+  const { tainted } = await renderIconToCanvas(canvas, opts);
+  // A tainted canvas means the favicon could only be loaded without CORS, so
+  // it cannot be exported — but the OS can fetch that URL itself.
+  applyForInstall(cfg, tainted ? opts.sourceValue : canvas.toDataURL('image/png'));
 
   const plat = platform();
   if (plat === 'ios') {
@@ -157,17 +188,12 @@ async function runInstallView(cfg) {
   if (!installViewInitialized) {
     installViewInitialized = true;
 
-    $('btn-install-android').addEventListener('click', async () => {
-      if (!deferredInstallPrompt) return;
-      deferredInstallPrompt.prompt();
-      await deferredInstallPrompt.userChoice;
-      deferredInstallPrompt = null;
-    });
+    $('btn-install-android').addEventListener('click', () => showChromeInstallPrompt());
 
     const shareBtn = $('btn-install-share');
     if (shareBtn) {
       shareBtn.addEventListener('click', async () => {
-        const shareUrl = encodeAppUrl('index.html', activeInstallCfg || params || {});
+        const shareUrl = encodeAppUrl(activeInstallCfg || params || {});
         const copied = await copyToClipboard(shareUrl);
         if (copied) {
           const originalText = shareBtn.textContent;
@@ -215,7 +241,7 @@ async function copyToClipboard(text) {
 }
 
 function applyForInstall(cfg, iconDataUri) {
-  const launchUrl = encodeAppUrl('index.html', cfg, { launch: true });
+  const launchUrl = encodeAppUrl(cfg, { launch: true });
 
   const manifestUri = buildManifestDataUri({
     name: cfg.name,
@@ -237,6 +263,11 @@ function iconOptsFor(cfg) {
   };
 }
 
+// Returns the scan view to a live state (camera + particles running). Assigned
+// by runScanFlow because both live in its closure; the popstate handler below
+// needs it, since showView('scan') alone leaves a dead, frozen viewfinder.
+let resumeScanView = null;
+
 // ---------------------------------------------------------------------------
 // Mode: fresh open -> scan -> preview -> customize -> generate install URL.
 // ---------------------------------------------------------------------------
@@ -254,7 +285,14 @@ function runScanFlow() {
     fgLight: 100,
     fgColor: '#ffffff',
     iconSource: 'favicon',
+    // iconValue is whatever the *current* source needs. The per-source slots
+    // below keep each source's pick intact when the user tabs between them —
+    // without them, choosing an Iconify glyph and then switching back to Auto
+    // would try to load the glyph id ("mdi:home") as a favicon image URL and
+    // silently fall back to a monogram.
     iconValue: '',
+    faviconValue: '',
+    iconifyValue: '',
     iconUpload: '',
     transition: 'fade',
   };
@@ -319,6 +357,8 @@ function runScanFlow() {
     closeInstallSheet();
     const cleanUrl = normalizeUrl(url);
     state.targetUrl = cleanUrl;
+    state.faviconValue = '';
+    state.iconValue = iconValueForSource(state.iconSource);
     try {
       const host = new URL(cleanUrl).hostname.replace(/^www\./, '');
       state.name = host;
@@ -355,7 +395,7 @@ function runScanFlow() {
     $('btn-preview-toggle').textContent = wrap.hidden ? 'Show live preview' : 'Hide live preview';
   });
 
-  $('btn-preview-back').addEventListener('click', () => {
+  resumeScanView = () => {
     closeInstallSheet();
     const pill = $('scan-pill');
     const pillText = $('scan-title');
@@ -363,9 +403,12 @@ function runScanFlow() {
     if (pillText) pillText.textContent = 'Scan QR code';
 
     showView('scan');
+    if (stopParticles) stopParticles();
     stopParticles = startParticles($('particles'));
     scanner.start();
-  });
+  };
+
+  $('btn-preview-back').addEventListener('click', () => resumeScanView());
 
   // -------------------- Install as App Bottom Sheet --------------------
   const installSheetBackdrop = $('install-sheet-backdrop');
@@ -436,10 +479,7 @@ function runScanFlow() {
 
   if (sheetInstallAndroidBtn) {
     sheetInstallAndroidBtn.addEventListener('click', async () => {
-      if (!deferredInstallPrompt) return;
-      deferredInstallPrompt.prompt();
-      await deferredInstallPrompt.userChoice;
-      deferredInstallPrompt = null;
+      await showChromeInstallPrompt();
       closeInstallSheet();
     });
   }
@@ -475,7 +515,7 @@ function runScanFlow() {
   $('btn-preview-next').addEventListener('click', () => enterCustomize());
 
   // -------------------- Customize --------------------
-  let iconify = { selectedId: '', searchTimer: null };
+  let iconify = { searchTimer: null };
   let mockupRaf = null;
 
   function updateShadeTrack(sliderId, hue) {
@@ -521,6 +561,7 @@ function runScanFlow() {
       document.querySelectorAll('#icon-source-tabs .tab').forEach((t) => t.classList.remove('active'));
       tab.classList.add('active');
       state.iconSource = tab.dataset.source;
+      state.iconValue = iconValueForSource(state.iconSource);
       ['favicon', 'monogram', 'iconify', 'upload'].forEach((s) => {
         const p = $(`panel-${s}`);
         if (p) p.hidden = s !== state.iconSource;
@@ -533,10 +574,20 @@ function runScanFlow() {
   // Detected once per scan (see enterPreview) and reused as the "Auto" icon;
   // there's no manual re-pick control since the preview card already shows
   // exactly what was found.
+  function iconValueForSource(source) {
+    if (source === 'favicon') return state.faviconValue;
+    if (source === 'iconify') return state.iconifyValue;
+    return ''; // monogram needs no value; upload carries its bytes in iconUpload
+  }
+
   async function loadFaviconCandidates() {
-    const best = await firstLoadableFavicon(faviconCandidates(state.targetUrl));
-    if (best) {
-      state.iconValue = best;
+    const requestedUrl = state.targetUrl;
+    const best = await firstLoadableFavicon(faviconCandidates(requestedUrl));
+    // Re-scanning before the probe settles would otherwise let the older
+    // lookup overwrite the newer site's icon.
+    if (best && state.targetUrl === requestedUrl) {
+      state.faviconValue = best;
+      if (state.iconSource === 'favicon') state.iconValue = best;
       $('preview-favicon').src = best;
       scheduleMockupUpdate();
     }
@@ -562,6 +613,7 @@ function runScanFlow() {
         btn.addEventListener('click', () => {
           document.querySelectorAll('.iconify-grid button').forEach((b) => b.classList.remove('selected'));
           btn.classList.add('selected');
+          state.iconifyValue = id;
           state.iconValue = id;
           scheduleMockupUpdate();
         });
@@ -572,37 +624,82 @@ function runScanFlow() {
     }
   }
 
-  // upload: downscale to max 192x192 PNG to keep URL query strings lightweight (< 8KB)
+  // Uploaded bytes ride in the `iu` query parameter of the app's own URL, which
+  // is both the shareable install link and the manifest start_url. Request-line
+  // limits on static hosts and CDNs start biting around 8KB, so the encoded
+  // icon is squeezed under a budget rather than merely resized: a 192x192 PNG
+  // of a photograph routinely encodes to 30-80KB, which would produce a link
+  // that 414s before any of this code gets to run.
+  const UPLOAD_URI_BUDGET = 6000; // characters of data URI
+
+  // Progressively cheaper encodings, best quality first. JPEG variants are
+  // composited onto the background colour because JPEG has no alpha channel.
+  const UPLOAD_ENCODINGS = [
+    { dim: 192, type: 'image/png' },
+    { dim: 128, type: 'image/png' },
+    { dim: 192, type: 'image/jpeg', quality: 0.82 },
+    { dim: 160, type: 'image/jpeg', quality: 0.72 },
+    { dim: 128, type: 'image/jpeg', quality: 0.6 },
+  ];
+
+  function encodeUpload(img, { dim, type, quality }) {
+    let w = img.width;
+    let h = img.height;
+    if (w > dim || h > dim) {
+      if (w > h) {
+        h = Math.round((h * dim) / w);
+        w = dim;
+      } else {
+        w = Math.round((w * dim) / h);
+        h = dim;
+      }
+    }
+    const c = document.createElement('canvas');
+    c.width = w;
+    c.height = h;
+    const ctx = c.getContext('2d');
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    if (type === 'image/jpeg') {
+      ctx.fillStyle = state.bgColor;
+      ctx.fillRect(0, 0, w, h);
+    }
+    ctx.drawImage(img, 0, 0, w, h);
+    return c.toDataURL(type, quality);
+  }
+
   $('upload-input').addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (!file) return;
+    const status = $('upload-status');
     const reader = new FileReader();
     reader.onload = () => {
       const img = new Image();
       img.onload = () => {
-        const maxDim = 192;
-        let w = img.width;
-        let h = img.height;
-        if (w > maxDim || h > maxDim) {
-          if (w > h) {
-            h = Math.round((h * maxDim) / w);
-            w = maxDim;
-          } else {
-            w = Math.round((w * maxDim) / h);
-            h = maxDim;
-          }
+        let encoded = '';
+        let degraded = false;
+        for (const encoding of UPLOAD_ENCODINGS) {
+          encoded = encodeUpload(img, encoding);
+          if (encoded.length <= UPLOAD_URI_BUDGET) break;
+          degraded = true;
         }
-        const c = document.createElement('canvas');
-        c.width = w;
-        c.height = h;
-        const ctx = c.getContext('2d');
-        ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = 'high';
-        ctx.drawImage(img, 0, 0, w, h);
-        state.iconUpload = c.toDataURL('image/png');
+        state.iconUpload = encoded;
+        if (status) {
+          status.textContent = encoded.length > UPLOAD_URI_BUDGET
+            ? 'This image is very detailed, so the share link will be long and may not open everywhere. A simpler logo works better.'
+            : degraded
+              ? 'Image compressed to keep the share link short.'
+              : '';
+        }
         scheduleMockupUpdate();
       };
+      img.onerror = () => {
+        if (status) status.textContent = "That file couldn't be read as an image.";
+      };
       img.src = reader.result;
+    };
+    reader.onerror = () => {
+      if (status) status.textContent = "That file couldn't be read.";
     };
     reader.readAsDataURL(file);
   });
@@ -652,13 +749,6 @@ function runScanFlow() {
     $('swatch-fg').style.background = state.fgColor;
   }
 
-  const transitionSelect = $('select-transition');
-  if (transitionSelect) {
-    transitionSelect.addEventListener('change', (e) => {
-      state.transition = e.target.value;
-    });
-  }
-
   // Coalesce to at most one redraw per frame — the underlying glyph is
   // cached (see iconBuilder.js), so this reads as real-time even while
   // actively dragging a slider.
@@ -678,7 +768,7 @@ function runScanFlow() {
   }
 
   $('btn-customize-next').addEventListener('click', () => {
-    const installUrl = encodeAppUrl('index.html', state);
+    const installUrl = encodeAppUrl(state);
     try {
       sessionStorage.setItem('qrapp_created', '1');
     } catch {}
@@ -694,10 +784,35 @@ window.addEventListener('popstate', (e) => {
     } else {
       showView(e.state.view);
     }
-  } else if (!location.search) {
+  } else if (!decodeAppParams(new URLSearchParams(location.search))) {
+    // Not a generated-app URL any more, so this is a step back into the
+    // scanner. Testing for an empty query string instead would strand the
+    // user on a stale view whenever an unrelated parameter is present.
     try {
       sessionStorage.removeItem('qrapp_created');
     } catch {}
-    showView('scan');
+    if (resumeScanView) {
+      resumeScanView();
+    } else {
+      // This load started in install mode, so the scan flow was never wired
+      // up; a reload is the only way to get a working viewfinder.
+      location.reload();
+    }
   }
 });
+
+// ---------------------------------------------------------------------------
+// Entry point. Declared last so every module-level binding above is
+// initialized before any mode runs.
+// ---------------------------------------------------------------------------
+function boot() {
+  if (isLaunchMode) {
+    runLaunch(params);
+  } else if (params) {
+    runInstallView(params);
+  } else {
+    runScanFlow();
+  }
+}
+
+boot();

@@ -6,9 +6,11 @@
 //   bg background color (hex, no #)
 //   fg foreground/icon color (hex, no #)
 //   is icon source: "favicon" | "monogram" | "iconify" | "upload"
-//   iv icon value: favicon candidate index | iconify id | (upload embeds bytes in "iu")
+//   iv icon value: favicon image URL | iconify id (unused for monogram/upload)
 //   iu uploaded icon as a data URI (only present for uploads)
 //   fx transition style: "instant" | "fade" | "slide"
+//   launch  present only on the manifest start_url, so an installed app can
+//           identify itself as a launch even if display-mode detection fails
 
 export function normalizeUrl(raw) {
   if (!raw || typeof raw !== 'string') return '';
@@ -33,7 +35,7 @@ export function normalizeUrl(raw) {
   }
 }
 
-export function encodeAppUrl(base = 'index.html', cfg = {}, options = {}) {
+export function encodeAppUrl(cfg = {}, options = {}) {
   const params = new URLSearchParams();
   if (cfg.targetUrl) params.set('t', cfg.targetUrl);
   if (cfg.name) params.set('n', cfg.name);
@@ -41,7 +43,9 @@ export function encodeAppUrl(base = 'index.html', cfg = {}, options = {}) {
   if (cfg.fgColor) params.set('fg', cfg.fgColor.replace('#', ''));
   if (cfg.iconSource) params.set('is', cfg.iconSource);
   if (cfg.iconValue) params.set('iv', cfg.iconValue);
-  if (cfg.iconUpload) params.set('iu', cfg.iconUpload);
+  // Only the upload source carries bytes; emitting them for other sources
+  // would inflate every shared URL with a dead, unread data URI.
+  if (cfg.iconUpload && cfg.iconSource === 'upload') params.set('iu', cfg.iconUpload);
   if (cfg.transition) params.set('fx', cfg.transition);
   if (options.launch) params.set('launch', '1');
 

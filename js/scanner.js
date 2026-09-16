@@ -16,6 +16,7 @@ export class Scanner {
     this.detected = false;
     this.torchActive = false;
     this.lastScanTime = 0;
+    this.starting = false;
 
     if ('BarcodeDetector' in window) {
       try {
@@ -26,38 +27,66 @@ export class Scanner {
     }
   }
 
+  // Safe to call when already running or while a previous call is still
+  // awaiting the permission prompt — double-tapping "Enable camera" must not
+  // leave an orphaned MediaStream running or start a second scan loop.
   async start() {
-    this.stopped = false;
-    this.detected = false;
+    if (this.starting) return;
+    this.starting = true;
     try {
-      this.stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { ideal: 'environment' },
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-        },
-        audio: false,
-      });
-    } catch (err) {
-      this.onError?.(err);
-      return;
+      if (this.stream) this.stop();
+      this.stopped = false;
+      this.detected = false;
+      // Hide before awaiting permission: a retry must not leave the previous
+      // (frozen, possibly unsized) frame painted while the prompt is up.
+      this.video.classList.remove('ready');
+
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: 'environment' },
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
+          audio: false,
+        });
+      } catch (err) {
+        this.onError?.(err);
+        return;
+      }
+
+      // stop() may have been called while the prompt was up.
+      if (this.stopped) {
+        for (const track of stream.getTracks()) {
+          try { track.stop(); } catch {}
+        }
+        return;
+      }
+
+      this.stream = stream;
+      this.video.srcObject = stream;
+
+      try {
+        await this.video.play();
+      } catch (err) {
+        this.onError?.(err);
+        return;
+      }
+
+      this._checkTorchSupport();
+      this._loop();
+      this._waitForVideoReady();
+    } finally {
+      this.starting = false;
     }
-
-    this.video.classList.remove('ready');
-    this.video.srcObject = this.stream;
-
-    try {
-      await this.video.play();
-    } catch (err) {
-      this.onError?.(err);
-      return;
-    }
-
-    this._checkTorchSupport();
-    this._loop();
-    this._waitForVideoReady();
   }
 
+  // The camera element is only revealed once the stream has real intrinsic
+  // dimensions. Until videoWidth/videoHeight are known, WebKit lays the media
+  // out at the <video> default intrinsic size (300x150) and `object-fit: cover`
+  // has nothing to fit against, so the frame paints as a small box letterboxed
+  // in black — the "shrinks then snaps to fullscreen" flash QA reported on iOS.
   async _waitForVideoReady() {
     if (this.stopped) return;
 
@@ -67,51 +96,64 @@ export class Scanner {
       this.video.readyState >= 2
     );
 
-    if (!hasDimensions()) {
+    await this._pollUntil(hasDimensions, 3000);
+    if (this.stopped) return;
+
+    // Dimensions are known; now wait for an actual painted frame so the fade-in
+    // never starts on a still-black surface.
+    if ('requestVideoFrameCallback' in this.video) {
       await new Promise((resolve) => {
-        const onReady = () => {
-          if (hasDimensions() || this.stopped) {
-            cleanup();
-            resolve();
-          }
-        };
-        const cleanup = () => {
-          this.video.removeEventListener('loadedmetadata', onReady);
-          this.video.removeEventListener('loadeddata', onReady);
-          this.video.removeEventListener('canplay', onReady);
-          this.video.removeEventListener('playing', onReady);
-          this.video.removeEventListener('resize', onReady);
-        };
-        this.video.addEventListener('loadedmetadata', onReady);
-        this.video.addEventListener('loadeddata', onReady);
-        this.video.addEventListener('canplay', onReady);
-        this.video.addEventListener('playing', onReady);
-        this.video.addEventListener('resize', onReady);
-        setTimeout(() => { cleanup(); resolve(); }, 1000);
+        const timer = setTimeout(resolve, 400);
+        this.video.requestVideoFrameCallback(() => {
+          clearTimeout(timer);
+          requestAnimationFrame(() => requestAnimationFrame(resolve));
+        });
       });
+    } else {
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
     }
 
     if (this.stopped) return;
 
-    if ('requestVideoFrameCallback' in this.video) {
-      await new Promise((resolve) => {
-        let timer = setTimeout(resolve, 400);
-        this.video.requestVideoFrameCallback(() => {
-          clearTimeout(timer);
-          requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-              setTimeout(resolve, 100);
-            });
-          });
-        });
-      });
-    } else {
-      await new Promise((resolve) => setTimeout(resolve, 250));
-    }
+    // If the poll above timed out without dimensions we still reveal, so a
+    // misbehaving camera leaves a letterboxed preview rather than a screen
+    // that stays black forever. That is the fallback, not the normal path.
+    this.video.classList.add('ready');
+  }
 
-    if (!this.stopped) {
-      this.video.classList.add('ready');
-    }
+  // Resolves as soon as `predicate` holds, re-checking every animation frame,
+  // or after `timeoutMs`. A frame-driven poll is used instead of media events
+  // because iOS fires loadedmetadata before videoWidth/videoHeight are set.
+  // The timer backstop is separate from the frame loop because rAF is paused
+  // while the document is hidden, which would otherwise leave this pending.
+  _pollUntil(predicate, timeoutMs) {
+    return new Promise((resolve) => {
+      if (predicate()) {
+        resolve(true);
+        return;
+      }
+      let done = false;
+      const settle = (value) => {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        resolve(value);
+      };
+      const timer = setTimeout(() => settle(predicate()), timeoutMs);
+      const check = () => {
+        if (done) return;
+        if (this.stopped) {
+          settle(false);
+          return;
+        }
+        if (predicate()) {
+          settle(true);
+          return;
+        }
+        requestAnimationFrame(check);
+      };
+      requestAnimationFrame(check);
+    });
   }
 
   stop() {

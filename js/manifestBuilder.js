@@ -5,6 +5,13 @@
 // JS and never stored anywhere.
 export function buildManifestDataUri({ name, startUrl, bgColor, iconDataUri }) {
   const scopeUrl = new URL(startUrl);
+  // iconDataUri is normally a PNG data URI we generated, but for a favicon that
+  // could not be drawn to an exportable canvas it is the remote image URL. We
+  // don't know that image's real dimensions or type, so declare neither.
+  const isGenerated = iconDataUri.startsWith('data:');
+  const icon = isGenerated
+    ? { sizes: '512x512', type: 'image/png' }
+    : { sizes: 'any' };
   const manifest = {
     id: startUrl,
     name,
@@ -15,8 +22,8 @@ export function buildManifestDataUri({ name, startUrl, bgColor, iconDataUri }) {
     background_color: bgColor,
     theme_color: bgColor, // matches the iOS theme-color meta tag below
     icons: [
-      { src: iconDataUri, sizes: '512x512', type: 'image/png', purpose: 'any' },
-      { src: iconDataUri, sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+      { src: iconDataUri, ...icon, purpose: 'any' },
+      { src: iconDataUri, ...icon, purpose: 'maskable' },
     ],
   };
   return 'data:application/manifest+json,' + encodeURIComponent(JSON.stringify(manifest));
@@ -37,7 +44,7 @@ export function applyManifestLink(dataUri) {
 // page is on screen at the moment "Add to Home Screen" is tapped.
 export function applyIOSMeta({ name, bgColor, iconDataUri }) {
   document.title = name;
-  setMeta('apple-mobile-web-app-title', name);
+  setMeta('apple-mobile-web-app-title', name, 'meta-apple-title');
   setMeta('theme-color', bgColor, 'meta-theme-color');
   setMeta('apple-mobile-web-app-capable', 'yes', 'meta-apple-capable');
   setMeta('mobile-web-app-capable', 'yes');

@@ -18,14 +18,17 @@
      `beforeinstallprompt` and caused installs to pick up the wrong
      (paramless) start_url. -->
 <link rel="manifest" id="link-manifest">
-<link rel="stylesheet" href="css/style.css?v=10">
+<!-- Cache-busting version. ES module imports are cached independently of the
+     entry script, so a bump here must be applied to every `?v=` in js/*.js at
+     the same time — otherwise browsers mix new and stale modules. -->
+<link rel="stylesheet" href="css/style.css?v=11">
 </head>
 <body>
 
 <div id="app">
 
   <!-- SCAN VIEW: Modern Fullscreen Experience -->
-  <section id="view-scan" class="view view-fullscreen" hidden>
+  <section id="view-scan" class="view" hidden>
     <video id="camera" playsinline muted autoplay></video>
 
     <!-- Ambient Vignettes for Edge Contrast & Safe Areas -->
@@ -49,7 +52,7 @@
     </div>
 
     <!-- Camera Error / Permission Fallback Card -->
-    <div id="scan-error-card" class="glass-card scan-error" hidden>
+    <div id="scan-error-card" class="glass-card" hidden>
       <div class="glass-card-icon" aria-hidden="true">📷</div>
       <h2>Camera unavailable</h2>
       <p id="scan-status">Please allow camera permissions to scan QR codes.</p>
@@ -184,6 +187,7 @@
 
         <div class="tab-panel" id="panel-upload" hidden>
           <input id="upload-input" type="file" accept="image/*">
+          <p class="field-hint" id="upload-status"></p>
         </div>
       </div>
 
@@ -229,15 +233,6 @@
           <input id="slider-fg-light" type="range" min="0" max="100" value="100" class="lightness-slider" aria-label="Icon color shade">
           <span class="swatch-spacer"></span>
         </div>
-      </div>
-
-      <div class="field" hidden>
-        <span>Launch transition</span>
-        <select id="select-transition">
-          <option value="instant">Instant</option>
-          <option value="fade" selected>Fade</option>
-          <option value="slide">Slide up</option>
-        </select>
       </div>
     </div>
 
@@ -290,6 +285,6 @@
 </div>
 
 <script src="lib/jsQR.min.js"></script>
-<script type="module" src="js/main.js?v=10"></script>
+<script type="module" src="js/main.js?v=11"></script>
 </body>
 </html>
