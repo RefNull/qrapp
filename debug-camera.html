@@ -20,140 +20,167 @@
     object-fit: cover;
     background: #000;
   }
-  /* Mode A == exactly what ships today, transform included. */
   video.modeA { transform: translateZ(0); backface-visibility: hidden; }
-  /* Mode B: identical, minus the transform I added. */
-  video.modeB { }
-  /* Mode C: no object-fit at all; JS sizes it to cover explicitly. */
-  video.modeC {
-    object-fit: fill;
-    width: auto; height: auto; min-width: 0; min-height: 0;
-    transform-origin: top left;
-  }
+  video.modeC { object-fit: fill; width: auto; height: auto;
+                min-width: 0; min-height: 0; transform-origin: top left; }
 
-  #out {
-    position: absolute; left: 0; right: 0; top: 0;
-    font: 11px/1.35 ui-monospace, Menlo, monospace;
-    color: #0f0; background: rgba(0,0,0,0.82);
-    padding: 6px 8px; white-space: pre; z-index: 5;
-  }
-  #btn {
-    position: absolute; left: 50%; transform: translateX(-50%);
-    bottom: 28px; z-index: 6;
-    padding: 14px 22px; font-size: 16px; font-weight: 600;
-    border-radius: 999px; border: 0; background: #2866bd; color: #fff;
-  }
-  /* Deliberately vivid so any gap around the app box is obvious. */
+  /* Gate variants start hidden and are revealed by script. */
+  video.gated { opacity: 0; visibility: hidden; transition: opacity 280ms ease; }
+  video.gated.ready { opacity: 1; visibility: visible; }
+
+  #out { position: absolute; left: 0; right: 0; top: 0; max-height: 72%;
+         overflow: auto; font: 10px/1.3 ui-monospace, Menlo, monospace;
+         color: #0f0; background: rgba(0,0,0,0.85); padding: 6px 8px;
+         white-space: pre; z-index: 5; }
+  #bar { position: absolute; left: 0; right: 0; bottom: 0; z-index: 6;
+         display: flex; flex-wrap: wrap; gap: 6px; padding: 10px;
+         background: rgba(0,0,0,0.8); }
+  #bar a { flex: 1 1 28%; text-align: center; padding: 12px 6px;
+           font: 600 14px -apple-system, sans-serif; text-decoration: none;
+           border-radius: 10px; background: #2866bd; color: #fff; }
+  #bar a.on { background: #0a0; }
   .edge { position: fixed; background: magenta; z-index: 4; }
 </style>
 </head>
 <body>
 <div id="app">
-  <div id="stage">
-    <video id="v" playsinline muted autoplay></video>
-  </div>
+  <div id="stage"><video id="v" playsinline muted autoplay></video></div>
   <pre id="out">starting…</pre>
-  <button id="btn" type="button">mode: A — tap to cycle</button>
+  <div id="bar"></div>
 </div>
-<!-- Magenta hairlines at the true screen edges: anything between these and the
-     black stage is area the app failed to cover. -->
 <div class="edge" style="left:0;top:0;right:0;height:2px"></div>
 <div class="edge" style="left:0;bottom:0;right:0;height:2px"></div>
 <script>
+// Recording starts at the first script tick, before the camera is requested,
+// so the whole load-time window is captured rather than sampled by hand.
+const T0 = performance.now();
+const q = new URLSearchParams(location.search);
+const MODE = (q.get('mode') || 'A').toUpperCase();
+const GATE = q.get('gate') || 'none';
+
 const v = document.getElementById('v');
 const out = document.getElementById('out');
-const btn = document.getElementById('btn');
-const modes = ['A', 'B', 'C'];
-let mode = 0;
+const marks = [];
+const rows = [];
+let lastKey = '';
 
+function mark(label) { marks.push(`${(performance.now() - T0).toFixed(0)}ms ${label}`); }
+
+function sample() {
+  const r = v.getBoundingClientRect();
+  const cs = getComputedStyle(v);
+  const key = [v.videoWidth, v.videoHeight, Math.round(r.width), Math.round(r.height),
+               Math.round(r.left), Math.round(r.top), v.readyState, cs.visibility,
+               cs.objectFit].join('|');
+  if (key !== lastKey) {
+    lastKey = key;
+    rows.push({ t: Math.round(performance.now() - T0), vw: v.videoWidth, vh: v.videoHeight,
+                w: Math.round(r.width), h: Math.round(r.height),
+                x: Math.round(r.left), y: Math.round(r.top),
+                rs: v.readyState, vis: cs.visibility.slice(0,3) });
+  }
+  requestAnimationFrame(sample);
+}
+
+function probeUnit(u) {
+  const d = document.createElement('div');
+  d.style.cssText = `position:fixed;height:100${u};top:-99999px;`;
+  document.body.appendChild(d);
+  const px = d.getBoundingClientRect().height; d.remove(); return px;
+}
 function probeInset(side) {
   const d = document.createElement('div');
   d.style.cssText = `position:fixed;height:env(safe-area-inset-${side},0px);`;
   document.body.appendChild(d);
-  const px = d.getBoundingClientRect().height;
-  d.remove();
-  return px;
-}
-function probeUnit(unit) {
-  const d = document.createElement('div');
-  d.style.cssText = `position:fixed;height:100${unit};top:-99999px;`;
-  document.body.appendChild(d);
-  const px = d.getBoundingClientRect().height;
-  d.remove();
-  return px;
+  const px = d.getBoundingClientRect().height; d.remove(); return px;
 }
 
-function applyMode() {
-  v.className = 'mode' + modes[mode];
-  btn.textContent = 'mode: ' + modes[mode] + ' — tap to cycle';
-  if (modes[mode] === 'C') sizeToCover();
-  else { v.style.width = ''; v.style.height = ''; v.style.transform = ''; }
+function render() {
+  const app = document.getElementById('app').getBoundingClientRect();
+  const t = v.srcObject && v.srcObject.getVideoTracks()[0];
+  const s = t && t.getSettings ? t.getSettings() : {};
+  const head = [
+    `mode=${MODE} gate=${GATE}  standalone=${matchMedia('(display-mode: standalone)').matches}`,
+    `dpr=${devicePixelRatio} screen=${screen.width}x${screen.height} inner=${innerWidth}x${innerHeight}`,
+    `100vh=${probeUnit('vh').toFixed(0)} 100dvh=${probeUnit('dvh').toFixed(0)} safeT=${probeInset('top').toFixed(0)} safeB=${probeInset('bottom').toFixed(0)}`,
+    `#app=${Math.round(app.width)}x${Math.round(app.height)}@${Math.round(app.top)} track=${s.width}x${s.height}`,
+    '',
+    'EVENTS:', ...marks, '',
+    'GEOMETRY CHANGES (t, intrinsic, rect wxh @x,y, readyState, vis):',
+  ];
+  const body = rows.map(r =>
+    `${String(r.t).padStart(5)}  ${String(r.vw).padStart(4)}x${String(r.vh).padEnd(4)}  ` +
+    `${String(r.w).padStart(4)}x${String(r.h).padEnd(4)} @${r.x},${r.y}  rs=${r.rs} ${r.vis}`);
+  out.textContent = head.concat(body).join('\n');
 }
 
-// Explicit cover: compute the scale ourselves, trusting nothing about object-fit.
+const bar = document.getElementById('bar');
+for (const [label, href] of [
+  ['A cold', '?mode=A'], ['B cold', '?mode=B'], ['C cold', '?mode=C'],
+  ['A+gate', '?mode=A&gate=app'], ['A+gate+', '?mode=A&gate=settle'], ['reload', location.search || '?mode=A'],
+]) {
+  const a = document.createElement('a');
+  a.textContent = label; a.href = href;
+  if (location.search === href) a.className = 'on';
+  bar.appendChild(a);
+}
+
 function sizeToCover() {
-  if (modes[mode] !== 'C') return;
+  if (MODE !== 'C') return;
   const stage = document.getElementById('stage').getBoundingClientRect();
   const vw = v.videoWidth, vh = v.videoHeight;
   if (!vw || !vh) return;
   const scale = Math.max(stage.width / vw, stage.height / vh);
   const w = vw * scale, h = vh * scale;
-  v.style.width = w + 'px';
-  v.style.height = h + 'px';
+  v.style.width = w + 'px'; v.style.height = h + 'px';
   v.style.transform = `translate(${(stage.width - w) / 2}px, ${(stage.height - h) / 2}px)`;
 }
 
-btn.addEventListener('click', () => { mode = (mode + 1) % modes.length; applyMode(); });
-
-function report() {
-  const r = v.getBoundingClientRect();
-  const app = document.getElementById('app').getBoundingClientRect();
-  const cs = getComputedStyle(v);
-  const vvp = window.visualViewport;
-  out.textContent = [
-    `mode          ${modes[mode]}`,
-    `standalone    ${window.matchMedia('(display-mode: standalone)').matches} / nav=${navigator.standalone}`,
-    `scheme        ${window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'}`,
-    `dpr           ${devicePixelRatio}`,
-    `screen        ${screen.width}x${screen.height}`,
-    `inner         ${innerWidth}x${innerHeight}`,
-    `docEl.client  ${document.documentElement.clientWidth}x${document.documentElement.clientHeight}`,
-    `visualVP      ${vvp ? Math.round(vvp.width)+'x'+Math.round(vvp.height)+' scale='+vvp.scale.toFixed(2)+' offY='+Math.round(vvp.offsetTop) : 'n/a'}`,
-    `100vh/100dvh  ${probeUnit('vh').toFixed(1)} / ${probeUnit('dvh').toFixed(1)}`,
-    `safe t/b      ${probeInset('top').toFixed(1)} / ${probeInset('bottom').toFixed(1)}`,
-    `#app rect     ${Math.round(app.width)}x${Math.round(app.height)} @${Math.round(app.left)},${Math.round(app.top)}`,
-    `video rect    ${Math.round(r.width)}x${Math.round(r.height)} @${Math.round(r.left)},${Math.round(r.top)}`,
-    `intrinsic     ${v.videoWidth}x${v.videoHeight}  readyState=${v.readyState}`,
-    `computed      w=${cs.width} h=${cs.height}`,
-    `object-fit    ${cs.objectFit}  pos=${cs.position}`,
-    `transform     ${cs.transform}`,
-    `track         ${trackInfo()}`,
-  ].join('\n');
-}
-
-function trackInfo() {
-  const t = v.srcObject && v.srcObject.getVideoTracks && v.srcObject.getVideoTracks()[0];
-  if (!t) return 'none';
-  const s = t.getSettings ? t.getSettings() : {};
-  return `${s.width}x${s.height} fr=${s.frameRate} facing=${s.facingMode}`;
-}
+v.className = 'mode' + MODE + (GATE === 'none' ? '' : ' gated');
 
 (async () => {
+  requestAnimationFrame(sample);
+  setInterval(render, 200);
+  mark('requesting camera');
+  let stream;
   try {
-    v.srcObject = await navigator.mediaDevices.getUserMedia({
+    stream = await navigator.mediaDevices.getUserMedia({
       video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
-      audio: false,
-    });
-    await v.play();
-  } catch (e) {
-    out.textContent = 'getUserMedia failed: ' + e;
-    return;
+      audio: false });
+  } catch (e) { mark('getUserMedia FAILED ' + e.name); return; }
+  mark('stream acquired');
+  v.srcObject = stream;
+  v.addEventListener('loadedmetadata', () => mark(`loadedmetadata ${v.videoWidth}x${v.videoHeight}`));
+  v.addEventListener('resize', () => { mark(`video resize ${v.videoWidth}x${v.videoHeight}`); sizeToCover(); });
+  await v.play().catch(e => mark('play FAILED ' + e.name));
+  mark('play() resolved');
+  sizeToCover();
+
+  if (GATE === 'none') return;
+
+  // Wait for real intrinsic dimensions.
+  await new Promise(res => {
+    const check = () => (v.videoWidth && v.videoHeight && v.readyState >= 2) ? res() : requestAnimationFrame(check);
+    check();
+  });
+  mark('dimensions known');
+
+  if ('requestVideoFrameCallback' in v) {
+    await new Promise(res => v.requestVideoFrameCallback(() => res()));
+    mark('first painted frame');
   }
-  applyMode();
-  setInterval(report, 250);
-  v.addEventListener('resize', sizeToCover);
-  addEventListener('resize', sizeToCover);
-  addEventListener('orientationchange', () => setTimeout(sizeToCover, 300));
+
+  if (GATE === 'settle') {
+    // Hold for several consecutive frames so WebKit has laid the media layer
+    // out at least once more after the first frame.
+    for (let i = 0; i < 8; i++) await new Promise(r => requestAnimationFrame(r));
+    mark('settle frames elapsed');
+  } else {
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+  }
+
+  v.classList.add('ready');
+  mark('REVEALED');
 })();
 </script>
 </body>
