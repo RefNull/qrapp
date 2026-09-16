@@ -93,6 +93,13 @@ body {
   background: #000;
   z-index: 1;
   pointer-events: none;
+  opacity: 0;
+  transition: opacity 220ms ease;
+}
+
+#camera.ready,
+#view-scan #camera.ready {
+  opacity: 1;
 }
 
 .scan-vignette-top {
@@ -448,14 +455,22 @@ body {
   aspect-ratio: 1;
   border-radius: 10px;
   border: 1px solid var(--border);
-  background: var(--surface);
+  background: #ffffff;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 6px;
   cursor: pointer;
+  transition: transform 100ms ease, border-color 150ms ease;
 }
-.iconify-grid button.selected { border-color: var(--accent); background: var(--surface-2); }
+.iconify-grid button:active {
+  transform: scale(0.94);
+}
+.iconify-grid button.selected {
+  border-color: var(--accent);
+  background: #eef2ff;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.35);
+}
 .iconify-grid img { width: 100%; height: 100%; object-fit: contain; }
 
 .color-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }

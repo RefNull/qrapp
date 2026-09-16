@@ -206,8 +206,8 @@ function runScanFlow() {
     bgLight: 45,
     bgColor: hueToHex(215, 65, 45),
     fgHue: 0,
-    fgLight: 55,
-    fgColor: hueToHex(0, 65, 55),
+    fgLight: 100,
+    fgColor: '#ffffff',
     iconSource: 'favicon',
     iconValue: '',
     iconUpload: '',
@@ -499,7 +499,7 @@ function runScanFlow() {
       for (const id of icons.slice(0, 30)) {
         const btn = document.createElement('button');
         btn.type = 'button';
-        btn.innerHTML = `<img src="${iconSvgUrl(id, '#ffffff')}" alt="${id}">`;
+        btn.innerHTML = `<img src="${iconSvgUrl(id, '#000000')}" alt="${id}">`;
         btn.addEventListener('click', () => {
           document.querySelectorAll('.iconify-grid button').forEach((b) => b.classList.remove('selected'));
           btn.classList.add('selected');

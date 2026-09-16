@@ -44,9 +44,19 @@ export class Scanner {
     }
 
     this.video.srcObject = this.stream;
+
+    // Reveal video only after the first frame has begun playing, avoiding
+    // WebKit's transient intrinsic rectangular sizing glitch.
+    const onPlaying = () => {
+      this.video.classList.add('ready');
+      this.video.removeEventListener('playing', onPlaying);
+    };
+    this.video.addEventListener('playing', onPlaying);
+
     try {
       await this.video.play();
     } catch (err) {
+      this.video.removeEventListener('playing', onPlaying);
       this.onError?.(err);
       return;
     }
@@ -57,6 +67,7 @@ export class Scanner {
 
   stop() {
     this.stopped = true;
+    this.video.classList.remove('ready');
     if (this.raf) {
       cancelAnimationFrame(this.raf);
       this.raf = null;

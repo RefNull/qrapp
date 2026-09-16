@@ -18,7 +18,7 @@
      `beforeinstallprompt` and caused installs to pick up the wrong
      (paramless) start_url. -->
 <link rel="manifest" id="link-manifest">
-<link rel="stylesheet" href="css/style.css?v=5">
+<link rel="stylesheet" href="css/style.css?v=6">
 </head>
 <body>
 
@@ -99,7 +99,8 @@
 
       <div id="sheet-ios-block" class="sheet-install-block" hidden>
         <ol class="ios-steps">
-          <li>Tap Share <span class="step-icon inline" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 8l5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg></span> in Safari's toolbar</li>
+          <li>Tap menu icon <span class="step-icon inline" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg></span> next to address bar</li>
+          <li>Tap Share <span class="step-icon inline" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 8l5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg></span></li>
           <li>Scroll down and tap <strong>Add to Home Screen</strong></li>
           <li>Tap <strong>Add</strong> at top right</li>
         </ol>
@@ -168,7 +169,7 @@
         <div class="tabs" id="icon-source-tabs">
           <button type="button" class="tab active" data-source="favicon">Auto</button>
           <button type="button" class="tab" data-source="monogram">Letter</button>
-          <button type="button" class="tab" data-source="iconify">Icon library</button>
+          <button type="button" class="tab" data-source="iconify">Icon</button>
           <button type="button" class="tab" data-source="upload">Upload</button>
         </div>
 
@@ -209,7 +210,7 @@
         </div>
         <div class="color-row">
           <span class="slider-label">Shade</span>
-          <input id="slider-fg-light" type="range" min="0" max="100" value="55" class="lightness-slider" aria-label="Icon color lightness">
+          <input id="slider-fg-light" type="range" min="0" max="100" value="100" class="lightness-slider" aria-label="Icon color lightness">
           <span class="swatch-spacer"></span>
         </div>
       </div>
@@ -252,7 +253,8 @@
 
     <div id="install-ios" class="install-block" hidden>
       <ol class="ios-steps">
-        <li>Tap Share <span class="step-icon inline" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 8l5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg></span> in Safari's toolbar</li>
+        <li>Tap menu icon <span class="step-icon inline" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg></span> next to address bar</li>
+        <li>Tap Share <span class="step-icon inline" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 8l5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg></span></li>
         <li>Scroll down and tap <strong>Add to Home Screen</strong></li>
         <li>Tap <strong>Add</strong> at top right</li>
       </ol>
@@ -272,6 +274,6 @@
 </div>
 
 <script src="lib/jsQR.min.js"></script>
-<script type="module" src="js/main.js?v=5"></script>
+<script type="module" src="js/main.js?v=6"></script>
 </body>
 </html>
