@@ -12,8 +12,8 @@ Turn any QR code into a customized home-screen app on iOS and Android. No App St
 ## How It Works
 
 1. **Scan**: Point your phone camera at any QR code in the fullscreen viewfinder.
-2. **Style**: Name your app, pick brand colors, and choose an icon (auto-detected site favicon, searchable icon library, or custom upload).
-3. **Install**: Add directly to your home screen in Safari (iOS) or Chrome (Android).
+2. **Style**: Name your app, pick brand colors, and choose an icon (auto-detected site favicon, letter monogram, searchable vector icon, or custom upload).
+3. **Install & Share**: Add directly to your home screen in Safari (iOS) or Chrome (Android), or share a one-click install link.
 
 The installed app launches in full standalone mode right from your home screen, with an optional splash transition into the target site.
 
@@ -27,8 +27,8 @@ The exact same page adapts its behavior based on how it is opened:
 
 | Context | Mode | What happens |
 | :--- | :--- | :--- |
-| **Browser tab (no params)** | **Scanner** | Fullscreen camera viewfinder (`BarcodeDetector` with automatic `jsQR` fallback) with real-time seeking particles and liquid glass controls. |
-| **Browser tab (with params)** | **Installer** | Injects an in-memory `data:` URI Web App Manifest for Android Chrome, or updates dynamic `apple-touch-icon` tags for iOS Safari. |
+| **Browser tab (no params)** | **Scanner** | Fullscreen camera viewfinder (`BarcodeDetector` with automatic `jsQR` fallback), hardware torch toggle, real-time particle effects, and swipe-up install sheet. |
+| **Browser tab (with params)** | **Installer** | Injects an in-memory `data:` URI Web App Manifest for Android Chrome, or updates dynamic `apple-touch-icon` tags for iOS Safari, with one-tap native Web Share. |
 | **Home screen (standalone)** | **Launcher** | Detects standalone display mode and redirects straight to the destination page with a branded transition. |
 
 See [`js/appstate.js`](js/appstate.js) for the exact parameter schema.
@@ -40,8 +40,9 @@ See [`js/appstate.js`](js/appstate.js) for the exact parameter schema.
 | Source | Recolorable | Details |
 | :--- | :--- | :--- |
 | **Auto** | No | Pulls high-resolution favicons from public discovery endpoints with touch-icon fallbacks. |
-| **Icon Library** | Yes | Search and recolor thousands of vector glyphs via the keyless [Iconify](https://iconify.design) API. |
-| **Custom Upload** | No | Upload any photo or logo; automatically optimized and downscaled client-side to keep the shareable URL compact. |
+| **Letter** | Yes | Typography monogram tile with customizable letter and background colors. |
+| **Icon** | Yes | Search and recolor thousands of vector glyphs via the keyless [Iconify](https://iconify.design) API. |
+| **Upload** | No | Upload any photo or logo; automatically downscaled to 192&times;192 client-side to keep the shareable URL compact. |
 
 If an image fails to load or draw, the generator falls back to a clean monogram tile so installation is never blocked.
 
