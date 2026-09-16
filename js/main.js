@@ -13,7 +13,13 @@ const views = ['scan', 'preview', 'customize', 'install'].reduce((m, k) => {
 }, {});
 
 function showView(name) {
-  for (const key in views) views[key].hidden = key !== name;
+  for (const key in views) {
+    const el = views[key];
+    if (!el) continue;
+    const isTarget = key === name;
+    el.hidden = !isTarget;
+    el.style.display = isTarget ? '' : 'none';
+  }
 }
 
 function platform() {
@@ -195,10 +201,8 @@ function runScanFlow() {
 
       const pill = $('scan-pill');
       const pillText = $('scan-title');
-      const reticle = $('scan-reticle');
       if (pill) pill.classList.add('locked');
       if (pillText) pillText.textContent = 'Code detected';
-      if (reticle) reticle.classList.add('locked');
 
       if (stopParticles?.converge) {
         stopParticles.converge();
@@ -282,10 +286,8 @@ function runScanFlow() {
     closeInstallSheet();
     const pill = $('scan-pill');
     const pillText = $('scan-title');
-    const reticle = $('scan-reticle');
     if (pill) pill.classList.remove('locked');
     if (pillText) pillText.textContent = 'Scan QR code';
-    if (reticle) reticle.classList.remove('locked');
 
     showView('scan');
     stopParticles = startParticles($('particles'));

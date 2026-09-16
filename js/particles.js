@@ -28,7 +28,7 @@ export function startParticles(canvas) {
     const cx = w / 2;
     const cy = h * 0.48;
 
-    // Radius distributed around the center reticle zone (roughly 70px to 170px on phones)
+    // Radius distributed around the center focal zone (roughly 70px to 170px on phones)
     const baseRadius = minDim * (0.18 + Math.random() * 0.26);
     const angle = (index / total) * Math.PI * 2 + (Math.random() - 0.5) * 0.6;
     const speed = (0.003 + Math.random() * 0.007) * (Math.random() < 0.5 ? 1 : -1);
