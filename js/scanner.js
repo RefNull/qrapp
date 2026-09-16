@@ -69,6 +69,7 @@ export class Scanner {
     }
     this.torchActive = false;
     this.video.srcObject = null;
+    this.onTorchChange?.({ supported: false, active: false });
   }
 
   _getVideoTrack() {

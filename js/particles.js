@@ -135,6 +135,7 @@ export function startParticles(canvas) {
   const controller = function stop() {
     if (raf) cancelAnimationFrame(raf);
     ro.disconnect();
+    ctx.clearRect(0, 0, w, h);
   };
 
   controller.converge = function (target) {
