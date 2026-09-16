@@ -6,7 +6,7 @@ without needing a native app, an app store, or a server.
 
 ## How it works
 
-Everything lives in `/app` as static files — no backend, no database. State
+Everything is static files at the repo root — no backend, no database. State
 for each generated app (target URL, name, icon, colors, launch transition) is
 encoded entirely in the page's own URL query string, so the exact same static
 page can act as three different things depending on how it's opened:
@@ -25,12 +25,15 @@ page can act as three different things depending on how it's opened:
    redirects straight into the target site, with an optional brief branded
    transition first.
 
-See `app/js/appstate.js` for the exact URL param schema.
+See `js/appstate.js` for the exact URL param schema.
 
 ## Deploying
 
 Any static host works (GitHub Pages, Cloudflare Pages, Netlify, etc.) —
-just serve the contents of `/app` over HTTPS. No build step, no server code.
+just serve this repo's contents over HTTPS. No build step, no server code.
+
+For GitHub Pages: Settings → Pages → Source: "Deploy from a branch" →
+Branch: `main`, folder `/ (root)`.
 
 ## Known open item — needs a real-device check
 
