@@ -84,19 +84,13 @@ function drawContained(ctx, size, img, coverage) {
 
 function drawMonogram(ctx, size, label, bgColor) {
   const letter = (label || '?').trim().charAt(0).toUpperCase() || '?';
-  // pick readable text color against the chosen background
-  const rgb = hexToRgb(bgColor);
-  const luminance = rgb ? (0.299 * rgb.r + 0.587 * rgb.g + 0.114 * rgb.b) / 255 : 0.5;
-  ctx.fillStyle = luminance > 0.6 ? '#111318' : '#ffffff';
+  const n = parseInt(bgColor.replace('#', ''), 16) || 0;
+  const lum = (0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255;
+  ctx.fillStyle = lum > 0.6 ? '#111318' : '#ffffff';
   ctx.font = `700 ${Math.round(size * 0.46)}px -apple-system, Roboto, sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(letter, size / 2, size / 2 + size * 0.03);
-}
-
-function hexToRgb(hex) {
-  const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-  return m ? { r: parseInt(m[1], 16), g: parseInt(m[2], 16), b: parseInt(m[3], 16) } : null;
 }
 
 // Synchronous placeholder (background + monogram, no image loads at all).
@@ -116,6 +110,8 @@ export function renderPlaceholderIcon(canvas, { bgColor, label }) {
 export async function renderIconToCanvas(canvas, opts) {
   const size = canvas.width;
   const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
   const isAuto = opts.sourceType === 'favicon';
 
   drawFill(ctx, size, isAuto ? '#ffffff' : opts.bgColor);
@@ -140,13 +136,5 @@ export async function buildIconDataUri(opts, size = 512) {
   canvas.width = size;
   canvas.height = size;
   await renderIconToCanvas(canvas, opts);
-  try {
-    return canvas.toDataURL('image/png');
-  } catch {
-    // Tainted despite our earlier check (rare race) — rebuild as a monogram.
-    const ctx = canvas.getContext('2d');
-    drawFill(ctx, size, opts.bgColor);
-    drawMonogram(ctx, size, opts.label, opts.bgColor);
-    return canvas.toDataURL('image/png');
-  }
+  return canvas.toDataURL('image/png');
 }

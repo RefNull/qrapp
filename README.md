@@ -1,45 +1,70 @@
 # QR to App
 
+Turn any QR code into a customized home-screen app on iOS and Android. No App Store, no accounts, and zero backend.
+
+[![Live Demo](https://img.shields.io/badge/demo-live-success.svg)](https://refnull.github.io/qrapp/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 ![Backend](https://img.shields.io/badge/backend-none-brightgreen.svg)
 ![Type](https://img.shields.io/badge/type-PWA-blue.svg)
 
-Scans a QR code and turns the page it points to into a home-screen app — custom name, icon, and colors — without a native app, an app store, or a server.
+---
 
-## How it works
+## How It Works
 
-The entire thing is static files served over HTTPS. State for each generated app (target URL, name, icon, colors, launch transition) lives in the page's own URL rather than a database, so the exact same page behaves differently depending on how it's opened:
+1. **Scan**: Point your phone camera at any QR code in the fullscreen viewfinder.
+2. **Style**: Name your app, pick brand colors, and choose an icon (auto-detected site favicon, searchable icon library, or custom upload).
+3. **Install**: Add directly to your home screen in Safari (iOS) or Chrome (Android).
 
-| Opened as... | Behavior |
-| :--- | :--- |
-| Fresh, no params | **Scanner** — camera QR detection (native `BarcodeDetector`, falling back to vendored `jsQR` on Safari/iOS), a preview of the scanned page, and an icon/color customizer. |
-| With params, in a browser tab | **Install view** — injects a `data:` URI manifest for Chrome's install prompt on Android, or sets `apple-touch-icon`/theme meta tags for Safari's native Add to Home Screen on iOS. |
-| With params, already installed (standalone) | **Launch** — redirects straight into the target site, with an optional brief branded transition. |
+The installed app launches in full standalone mode right from your home screen, with an optional splash transition into the target site.
 
-See [`js/appstate.js`](js/appstate.js) for the exact URL param schema.
+---
 
-## Icon sourcing
+## Zero-Backend Architecture
 
-| Source | Recolorable | Notes |
+The entire project is static HTML, CSS, and vanilla JavaScript served over HTTPS. App configuration lives entirely in the URL query string—no database, no analytics, and no tracking.
+
+The exact same page adapts its behavior based on how it is opened:
+
+| Context | Mode | What happens |
 | :--- | :--- | :--- |
-| **Auto** (default) | No | Pulls the scanned site's favicon via Google's public favicon lookup, with `/apple-touch-icon.png` and `/favicon.ico` as fallbacks. |
-| **Icon library** | Yes | Search via the free, keyless [Iconify](https://iconify.design) API. |
-| **Upload** | No | Composited onto your chosen background color as-is. |
+| **Browser tab (no params)** | **Scanner** | Fullscreen camera viewfinder (`BarcodeDetector` with automatic `jsQR` fallback) with real-time seeking particles and liquid glass controls. |
+| **Browser tab (with params)** | **Installer** | Injects an in-memory `data:` URI Web App Manifest for Android Chrome, or updates dynamic `apple-touch-icon` tags for iOS Safari. |
+| **Home screen (standalone)** | **Launcher** | Detects standalone display mode and redirects straight to the destination page with a branded transition. |
 
-If nothing loads or draws, the icon falls back to a monogram tile so app creation never gets stuck on a bad image.
+See [`js/appstate.js`](js/appstate.js) for the exact parameter schema.
 
-## Deploying
+---
 
-Any static host works — GitHub Pages, Cloudflare Pages, Netlify. No build step, no server code.
+## Icon Sourcing
 
-For GitHub Pages: Settings → Pages → Source → `main`, folder `/(root)`. Everything lives at the repo root rather than a subfolder since "deploy from branch" only serves `/(root)` or `/docs`.
+| Source | Recolorable | Details |
+| :--- | :--- | :--- |
+| **Auto** | No | Pulls high-resolution favicons from public discovery endpoints with touch-icon fallbacks. |
+| **Icon Library** | Yes | Search and recolor thousands of vector glyphs via the keyless [Iconify](https://iconify.design) API. |
+| **Custom Upload** | No | Upload any photo or logo; automatically optimized and downscaled client-side to keep the shareable URL compact. |
 
-## Known limitations
+If an image fails to load or draw, the generator falls back to a clean monogram tile so installation is never blocked.
 
-- **iOS touch-icon reliability is unverified on real hardware.** Chrome's `data:` URI manifest support is a documented pattern; whether Safari reliably captures a dynamically-set `apple-touch-icon` at Add-to-Home-Screen time across current iOS versions still needs a device check. Fallback: prefer the target site's own favicon URL directly.
-- **Installed standalone apps on iOS get their own cookie jar**, separate from Safari — a site that requires login may prompt again on first launch.
-- **Arbitrary favicons can't be recolored.** Reading pixels back off a cross-origin `<img>` without permissive CORS headers taints the canvas, so only Iconify glyphs and uploads support the icon color slider.
+---
+
+## Deployment
+
+No build steps, no bundlers, no dependencies to install.
+
+Drop the files onto any static host:
+- **GitHub Pages**: Settings &rarr; Pages &rarr; Source: `Deploy from a branch` &rarr; `main` branch, folder `/(root)`.
+- **Cloudflare Pages / Netlify / Vercel**: Set root directory to `./`, build command empty, output directory `./`.
+
+---
+
+## Technical Constraints
+
+- **iOS Cookie Isolation**: iOS Safari runs standalone home-screen apps in an isolated WebKit container separate from the main Safari browser session. Sites requiring authentication may prompt for login on first launch.
+- **Canvas Tainting**: Cross-origin site favicons loaded without permissive CORS headers cannot be color-shifted via pixel manipulation. Full color customization is supported on Iconify glyphs and uploaded images.
+- **Storage Limits**: Because all state is encoded into the URL, uploaded images are downscaled to 192&times;192 PNG to stay safely below mobile browser URL length limits.
+
+---
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT &mdash; see [LICENSE](LICENSE).

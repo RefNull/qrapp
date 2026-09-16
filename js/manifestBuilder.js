@@ -39,8 +39,22 @@ export function applyIOSMeta({ name, bgColor, iconDataUri }) {
   document.title = name;
   setMeta('apple-mobile-web-app-title', name);
   setMeta('theme-color', bgColor, 'meta-theme-color');
-  const touchIcon = document.getElementById('link-apple-touch-icon');
-  if (touchIcon && iconDataUri) touchIcon.href = iconDataUri;
+  setMeta('apple-mobile-web-app-capable', 'yes', 'meta-apple-capable');
+  setMeta('mobile-web-app-capable', 'yes');
+
+  if (iconDataUri) {
+    const oldIcon = document.getElementById('link-apple-touch-icon');
+    const newIcon = document.createElement('link');
+    newIcon.id = 'link-apple-touch-icon';
+    newIcon.rel = 'apple-touch-icon';
+    newIcon.sizes = '180x180';
+    newIcon.href = iconDataUri;
+    if (oldIcon && oldIcon.parentNode) {
+      oldIcon.parentNode.replaceChild(newIcon, oldIcon);
+    } else {
+      document.head.appendChild(newIcon);
+    }
+  }
 }
 
 function setMeta(name, content, existingId) {

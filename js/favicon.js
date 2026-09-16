@@ -18,18 +18,12 @@ export function faviconCandidates(targetUrl) {
   ];
 }
 
-// Resolves the first candidate that actually loads as an image.
+// Resolves the first candidate that loads as an image.
 export function firstLoadableFavicon(candidates) {
-  return new Promise((resolve) => {
-    let i = 0;
-    function tryNext() {
-      if (i >= candidates.length) return resolve(null);
-      const url = candidates[i++];
-      const img = new Image();
-      img.onload = () => resolve(url);
-      img.onerror = tryNext;
-      img.src = url;
-    }
-    tryNext();
-  });
+  return Promise.any(candidates.map((url) => new Promise((res, rej) => {
+    const img = new Image();
+    img.onload = () => res(url);
+    img.onerror = rej;
+    img.src = url;
+  }))).catch(() => null);
 }

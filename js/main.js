@@ -1,6 +1,6 @@
 import { Scanner } from './scanner.js';
 import { startParticles } from './particles.js';
-import { encodeAppUrl, decodeAppParams, isStandalone } from './appstate.js';
+import { encodeAppUrl, decodeAppParams, isStandalone, normalizeUrl } from './appstate.js';
 import { faviconCandidates, firstLoadableFavicon } from './favicon.js';
 import { searchIcons, iconSvgUrl } from './iconify.js';
 import { renderIconToCanvas, renderPlaceholderIcon, buildIconDataUri } from './iconBuilder.js';
@@ -23,15 +23,34 @@ function platform() {
   return 'other';
 }
 
+const colorCanvas = document.createElement('canvas');
+colorCanvas.width = colorCanvas.height = 1;
+const colorCtx = colorCanvas.getContext('2d', { willReadFrequently: true });
+
 function hueToHex(hue, sat = 70, light = 45) {
-  const c = document.createElement('canvas'); // avoids a hand-rolled HSL->RGB converter
-  c.width = c.height = 1;
-  const ctx = c.getContext('2d');
-  ctx.fillStyle = `hsl(${hue}, ${sat}%, ${light}%)`;
-  ctx.fillRect(0, 0, 1, 1);
-  const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data;
+  colorCtx.fillStyle = `hsl(${hue}, ${sat}%, ${light}%)`;
+  colorCtx.fillRect(0, 0, 1, 1);
+  const [r, g, b] = colorCtx.getImageData(0, 0, 1, 1).data;
   return '#' + [r, g, b].map((v) => v.toString(16).padStart(2, '0')).join('');
 }
+
+// ---------------------------------------------------------------------------
+// Global PWA install prompt handler
+// ---------------------------------------------------------------------------
+let deferredInstallPrompt = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  const androidBtn = $('install-android');
+  const androidFallback = $('install-android-fallback');
+  if (androidBtn) androidBtn.hidden = false;
+  if (androidFallback) androidFallback.hidden = true;
+
+  const sheetAndroid = $('sheet-android-block');
+  const sheetFallback = $('sheet-android-fallback');
+  if (sheetAndroid) sheetAndroid.hidden = false;
+  if (sheetFallback) sheetFallback.hidden = true;
+});
 
 // ---------------------------------------------------------------------------
 // Entry: figure out which of the three modes this page load is.
@@ -54,28 +73,25 @@ function runLaunch(cfg) {
     location.replace(cfg.targetUrl);
     return;
   }
-  document.body.innerHTML = `<div class="launch-fade"><img id="launch-icon" alt=""></div>`;
+  const transitionClass = cfg.transition === 'slide' ? 'launch-slide' : 'launch-fade';
+  document.body.innerHTML = `<div class="${transitionClass}"><img id="launch-icon" alt=""></div>`;
   const img = $('launch-icon');
-  buildIconDataUri(iconOptsFor(cfg)).then((uri) => { img.src = uri; });
-  setTimeout(() => location.replace(cfg.targetUrl), cfg.transition === 'slide' ? 480 : 260);
+
+  // Synchronous placeholder icon so the launch screen never renders blank
+  const placeholderCanvas = document.createElement('canvas');
+  placeholderCanvas.width = placeholderCanvas.height = 160;
+  img.src = renderPlaceholderIcon(placeholderCanvas, { bgColor: cfg.bgColor, label: cfg.name });
+
+  buildIconDataUri(iconOptsFor(cfg), 160).then((uri) => {
+    img.src = uri;
+  });
+  setTimeout(() => location.replace(cfg.targetUrl), cfg.transition === 'slide' ? 420 : 280);
 }
 
 // ---------------------------------------------------------------------------
 // Mode: this exact URL is a generated app -> show install instructions.
 // ---------------------------------------------------------------------------
 async function runInstallView(cfg) {
-  // Register this before anything else, and touch the manifest/meta tags
-  // synchronously (no awaits) below: Chrome can fire `beforeinstallprompt`
-  // as soon as it likes, and it must never see the stale default
-  // manifest.json (start_url with no params) instead of this app's own.
-  let deferredPrompt = null;
-  window.addEventListener('beforeinstallprompt', (e) => {
-    e.preventDefault();
-    deferredPrompt = e;
-    $('install-android').hidden = false;
-    $('install-android-fallback').hidden = true;
-  });
-
   showView('install');
   $('install-app-name').textContent = cfg.name;
   $('install-app-target').textContent = cfg.targetUrl;
@@ -93,25 +109,27 @@ async function runInstallView(cfg) {
   if (plat === 'ios') {
     $('install-ios').hidden = false;
   } else if (plat === 'android') {
-    // Show the native-prompt button optimistically; if beforeinstallprompt
-    // never fires within a short window (criteria not met, or already
-    // installed), fall back to manual Chrome-menu instructions.
-    $('install-android').hidden = false;
-    setTimeout(() => {
-      if (!deferredPrompt) {
-        $('install-android').hidden = true;
-        $('install-android-fallback').hidden = false;
-      }
-    }, 1200);
+    if (deferredInstallPrompt) {
+      $('install-android').hidden = false;
+      $('install-android-fallback').hidden = true;
+    } else {
+      $('install-android').hidden = false;
+      setTimeout(() => {
+        if (!deferredInstallPrompt) {
+          $('install-android').hidden = true;
+          $('install-android-fallback').hidden = false;
+        }
+      }, 1200);
+    }
   } else {
     $('install-generic').hidden = false;
   }
 
   $('btn-install-android').addEventListener('click', async () => {
-    if (!deferredPrompt) return;
-    deferredPrompt.prompt();
-    await deferredPrompt.userChoice;
-    deferredPrompt = null;
+    if (!deferredInstallPrompt) return;
+    deferredInstallPrompt.prompt();
+    await deferredInstallPrompt.userChoice;
+    deferredInstallPrompt = null;
   });
 
   $('btn-install-restart').addEventListener('click', () => {
@@ -145,7 +163,7 @@ function iconOptsFor(cfg) {
 // ---------------------------------------------------------------------------
 function runScanFlow() {
   showView('scan');
-  const stopParticles = startParticles($('particles'));
+  let stopParticles = startParticles($('particles'));
 
   const state = {
     targetUrl: '',
@@ -162,37 +180,78 @@ function runScanFlow() {
     transition: 'fade',
   };
 
+  const torchBtn = $('btn-torch');
+  if (torchBtn) {
+    torchBtn.addEventListener('click', async () => {
+      const active = await scanner.toggleTorch();
+      torchBtn.classList.toggle('active', Boolean(active));
+    });
+  }
+
   const scanner = new Scanner($('camera'), {
     onDetect: (value) => {
-      scanner.stop();
-      stopParticles();
-      enterPreview(value);
+      const cleanUrl = normalizeUrl(value);
+      if (!cleanUrl) return;
+
+      const pill = $('scan-pill');
+      const pillText = $('scan-title');
+      const reticle = $('scan-reticle');
+      if (pill) pill.classList.add('locked');
+      if (pillText) pillText.textContent = 'Code detected';
+      if (reticle) reticle.classList.add('locked');
+
+      if (stopParticles?.converge) {
+        stopParticles.converge();
+      }
+
+      if ('vibrate' in navigator) {
+        try { navigator.vibrate(40); } catch {}
+      }
+
+      setTimeout(() => {
+        scanner.stop();
+        if (stopParticles) stopParticles();
+        enterPreview(cleanUrl);
+      }, 260);
     },
     onError: () => {
-      $('scan-status').textContent = 'Camera unavailable.';
+      const errorCard = $('scan-error-card');
+      if (errorCard) errorCard.hidden = false;
+      $('scan-status').textContent = 'Camera permission required to scan.';
       $('btn-camera-retry').hidden = false;
+    },
+    onTorchChange: ({ supported, active }) => {
+      if (torchBtn) {
+        torchBtn.hidden = !supported;
+        torchBtn.classList.toggle('active', Boolean(active));
+      }
     },
   });
   scanner.start();
 
   $('btn-camera-retry').addEventListener('click', () => {
+    const errorCard = $('scan-error-card');
+    if (errorCard) errorCard.hidden = true;
     $('btn-camera-retry').hidden = true;
-    $('scan-status').textContent = 'Looking for a code…';
+    const pillText = $('scan-title');
+    if (pillText) pillText.textContent = 'Scan QR code';
     scanner.start();
   });
 
   function enterPreview(url) {
-    state.targetUrl = url;
+    closeInstallSheet();
+    const cleanUrl = normalizeUrl(url);
+    state.targetUrl = cleanUrl;
     try {
-      const host = new URL(url).hostname.replace(/^www\./, '');
+      const host = new URL(cleanUrl).hostname.replace(/^www\./, '');
       state.name = host;
       $('preview-host').textContent = host;
     } catch {
       state.name = 'App';
       $('preview-host').textContent = 'App';
     }
-    $('preview-open-link').href = url;
-    $('preview-url').textContent = url;
+    $('preview-open-link').href = cleanUrl;
+    $('preview-url').textContent = cleanUrl;
 
     // Detect the favicon once here so both the preview card and the
     // customize step's "Auto" icon reuse the same result.
@@ -220,10 +279,123 @@ function runScanFlow() {
   });
 
   $('btn-preview-back').addEventListener('click', () => {
+    closeInstallSheet();
+    const pill = $('scan-pill');
+    const pillText = $('scan-title');
+    const reticle = $('scan-reticle');
+    if (pill) pill.classList.remove('locked');
+    if (pillText) pillText.textContent = 'Scan QR code';
+    if (reticle) reticle.classList.remove('locked');
+
     showView('scan');
-    startParticles($('particles'));
+    stopParticles = startParticles($('particles'));
     scanner.start();
   });
+
+  // -------------------- Install as App Bottom Sheet --------------------
+  const installSheetBackdrop = $('install-sheet-backdrop');
+  const showInstallSheetBtn = $('btn-show-install-sheet');
+  const closeInstallSheetBtn = $('btn-close-sheet');
+  const sheetContainer = $('install-sheet');
+  const sheetHandleBar = $('sheet-handle-bar');
+  const sheetInstallAndroidBtn = $('btn-sheet-install-android');
+
+  if (isStandalone() && showInstallSheetBtn) {
+    showInstallSheetBtn.hidden = true;
+  }
+
+  function openInstallSheet() {
+    const plat = platform();
+    if (plat === 'ios') {
+      $('sheet-ios-block').hidden = false;
+      $('sheet-android-block').hidden = true;
+      $('sheet-android-fallback').hidden = true;
+      $('sheet-generic-block').hidden = true;
+    } else if (plat === 'android') {
+      $('sheet-ios-block').hidden = true;
+      $('sheet-generic-block').hidden = true;
+      if (deferredInstallPrompt) {
+        $('sheet-android-block').hidden = false;
+        $('sheet-android-fallback').hidden = true;
+      } else {
+        $('sheet-android-block').hidden = true;
+        $('sheet-android-fallback').hidden = false;
+      }
+    } else {
+      $('sheet-ios-block').hidden = true;
+      $('sheet-android-block').hidden = true;
+      $('sheet-android-fallback').hidden = true;
+      $('sheet-generic-block').hidden = false;
+    }
+
+    installSheetBackdrop.hidden = false;
+    void installSheetBackdrop.offsetWidth;
+    installSheetBackdrop.classList.add('active');
+  }
+
+  function closeInstallSheet() {
+    if (!installSheetBackdrop || installSheetBackdrop.hidden) return;
+    installSheetBackdrop.classList.remove('active');
+    if (sheetContainer) sheetContainer.style.transform = '';
+    setTimeout(() => {
+      installSheetBackdrop.hidden = true;
+    }, 280);
+  }
+
+  if (showInstallSheetBtn) {
+    showInstallSheetBtn.addEventListener('click', openInstallSheet);
+  }
+  if (closeInstallSheetBtn) {
+    closeInstallSheetBtn.addEventListener('click', closeInstallSheet);
+  }
+  if (installSheetBackdrop) {
+    installSheetBackdrop.addEventListener('click', (e) => {
+      if (e.target === installSheetBackdrop) closeInstallSheet();
+    });
+  }
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && installSheetBackdrop && !installSheetBackdrop.hidden) {
+      closeInstallSheet();
+    }
+  });
+
+  if (sheetInstallAndroidBtn) {
+    sheetInstallAndroidBtn.addEventListener('click', async () => {
+      if (!deferredInstallPrompt) return;
+      deferredInstallPrompt.prompt();
+      await deferredInstallPrompt.userChoice;
+      deferredInstallPrompt = null;
+      closeInstallSheet();
+    });
+  }
+
+  // Swipe down on handle bar to dismiss
+  if (sheetHandleBar && sheetContainer) {
+    let startY = 0;
+    let diffY = 0;
+    sheetHandleBar.addEventListener('touchstart', (e) => {
+      startY = e.touches[0].clientY;
+      diffY = 0;
+      sheetContainer.style.transition = 'none';
+    }, { passive: true });
+
+    sheetHandleBar.addEventListener('touchmove', (e) => {
+      const currentY = e.touches[0].clientY;
+      diffY = currentY - startY;
+      if (diffY > 0) {
+        sheetContainer.style.transform = `translateY(${diffY}px)`;
+      }
+    }, { passive: true });
+
+    sheetHandleBar.addEventListener('touchend', () => {
+      sheetContainer.style.transition = '';
+      if (diffY > 75) {
+        closeInstallSheet();
+      } else {
+        sheetContainer.style.transform = '';
+      }
+    });
+  }
 
   $('btn-preview-next').addEventListener('click', () => enterCustomize());
 
@@ -308,14 +480,37 @@ function runScanFlow() {
     }
   }
 
-  // upload
+  // upload: downscale to max 192x192 PNG to keep URL query strings lightweight (< 8KB)
   $('upload-input').addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (!file) return;
     const reader = new FileReader();
     reader.onload = () => {
-      state.iconUpload = reader.result;
-      scheduleMockupUpdate();
+      const img = new Image();
+      img.onload = () => {
+        const maxDim = 192;
+        let w = img.width;
+        let h = img.height;
+        if (w > maxDim || h > maxDim) {
+          if (w > h) {
+            h = Math.round((h * maxDim) / w);
+            w = maxDim;
+          } else {
+            w = Math.round((w * maxDim) / h);
+            h = maxDim;
+          }
+        }
+        const c = document.createElement('canvas');
+        c.width = w;
+        c.height = h;
+        const ctx = c.getContext('2d');
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(img, 0, 0, w, h);
+        state.iconUpload = c.toDataURL('image/png');
+        scheduleMockupUpdate();
+      };
+      img.src = reader.result;
     };
     reader.readAsDataURL(file);
   });

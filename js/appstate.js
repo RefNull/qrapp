@@ -10,6 +10,29 @@
 //   iu uploaded icon as a data URI (only present for uploads)
 //   fx transition style: "instant" | "fade" | "slide"
 
+export function normalizeUrl(raw) {
+  if (!raw || typeof raw !== 'string') return '';
+  const trimmed = raw.trim();
+  // Reject dangerous pseudo-protocols
+  if (/^(javascript|data|vbscript|file):/i.test(trimmed)) {
+    return '';
+  }
+  let target = trimmed;
+  // If no scheme present, default to https://
+  if (!/^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//.test(target)) {
+    target = 'https://' + target;
+  }
+  try {
+    const parsed = new URL(target);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return '';
+    }
+    return parsed.toString();
+  } catch {
+    return '';
+  }
+}
+
 export function encodeAppUrl(base, cfg) {
   const params = new URLSearchParams();
   params.set('t', cfg.targetUrl);
@@ -20,15 +43,21 @@ export function encodeAppUrl(base, cfg) {
   if (cfg.iconValue) params.set('iv', cfg.iconValue);
   if (cfg.iconUpload) params.set('iu', cfg.iconUpload);
   params.set('fx', cfg.transition || 'fade');
-  const url = new URL(base, location.href);
+
+  // Attach search parameters reliably to current pathname
+  const url = new URL(location.pathname, location.origin);
   url.search = params.toString();
   return url.toString();
 }
 
 export function decodeAppParams(searchParams) {
   if (!searchParams.has('t')) return null;
+  const rawTarget = searchParams.get('t');
+  const targetUrl = normalizeUrl(rawTarget);
+  if (!targetUrl) return null;
+
   return {
-    targetUrl: searchParams.get('t'),
+    targetUrl,
     name: searchParams.get('n') || 'App',
     bgColor: '#' + (searchParams.get('bg') || '3b82f6'),
     fgColor: '#' + (searchParams.get('fg') || 'ffffff'),

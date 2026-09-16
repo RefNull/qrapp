@@ -7,6 +7,7 @@
 <meta name="description" content="Scan a QR code and turn it into a home screen app.">
 <meta name="theme-color" content="#0b0d12" id="meta-theme-color">
 <meta name="apple-mobile-web-app-capable" content="yes" id="meta-apple-capable">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="QR to App" id="meta-apple-title">
 <link rel="apple-touch-icon" href="icons/default-touch-icon.png" id="link-apple-touch-icon">
@@ -23,23 +24,105 @@
 
 <div id="app">
 
-  <!-- SCAN VIEW -->
-  <section id="view-scan" class="view" hidden>
+  <!-- SCAN VIEW: Modern Fullscreen Experience -->
+  <section id="view-scan" class="view view-fullscreen" hidden>
+    <video id="camera" playsinline muted autoplay></video>
+
+    <!-- Ambient Vignettes for Edge Contrast & Safe Areas -->
+    <div class="scan-vignette-top" aria-hidden="true"></div>
+    <div class="scan-vignette-bottom" aria-hidden="true"></div>
+
+    <!-- Center-Traversing Particles Canvas -->
     <canvas id="particles" class="particles"></canvas>
-    <div class="scan-stage">
-      <video id="camera" playsinline muted autoplay></video>
-      <div class="reticle">
-        <span class="corner tl"></span><span class="corner tr"></span>
-        <span class="corner bl"></span><span class="corner br"></span>
-        <div class="scan-line"></div>
+
+    <!-- iOS Liquid Glass Top Header Pill -->
+    <div class="scan-overlay-top">
+      <div class="glass-pill" id="scan-pill">
+        <span class="glass-dot" aria-hidden="true"></span>
+        <span class="glass-text" id="scan-title">Scan QR code</span>
+      </div>
+      <button id="btn-torch" class="glass-btn" aria-label="Toggle flashlight" type="button" hidden>
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+        </svg>
+      </button>
+    </div>
+
+    <!-- Sleek Minimalist Focal Reticle -->
+    <div class="scan-reticle" id="scan-reticle" aria-hidden="true">
+      <span class="reticle-corner tl"></span>
+      <span class="reticle-corner tr"></span>
+      <span class="reticle-corner bl"></span>
+      <span class="reticle-corner br"></span>
+    </div>
+
+    <!-- Camera Error / Permission Fallback Card -->
+    <div id="scan-error-card" class="glass-card scan-error" hidden>
+      <div class="glass-card-icon" aria-hidden="true">📷</div>
+      <h2>Camera unavailable</h2>
+      <p id="scan-status">Please allow camera permissions to scan QR codes.</p>
+      <button id="btn-camera-retry" class="btn btn-primary" type="button">Enable camera</button>
+    </div>
+
+    <!-- Bottom Floating Install as App Pill Button -->
+    <div class="scan-overlay-bottom">
+      <button id="btn-show-install-sheet" class="glass-pill glass-pill-btn" type="button" aria-haspopup="dialog">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+          <polyline points="7 10 12 15 17 10" />
+          <line x1="12" y1="15" x2="12" y2="3" />
+        </svg>
+        <span>Install as app</span>
+      </button>
+    </div>
+  </section>
+
+  <!-- INSTALL THIS APP BOTTOM SHEET -->
+  <div id="install-sheet-backdrop" class="sheet-backdrop" hidden>
+    <div class="sheet-container" id="install-sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+      <div class="sheet-handle-bar" id="sheet-handle-bar" aria-hidden="true">
+        <span class="sheet-handle"></span>
+      </div>
+      <header class="sheet-header">
+        <div class="sheet-header-title">
+          <img src="icons/favicon.svg" alt="" width="26" height="26" class="sheet-app-icon">
+          <h2 id="sheet-title">Install QR to App</h2>
+        </div>
+        <button id="btn-close-sheet" class="btn-icon sheet-close" aria-label="Close dialog">&times;</button>
+      </header>
+      <p class="sheet-desc">Add this scanner to your home screen for instant full-screen access without browser bars.</p>
+
+      <div id="sheet-android-block" class="sheet-install-block" hidden>
+        <button id="btn-sheet-install-android" class="btn btn-primary">Add to Home Screen</button>
+        <p class="field-hint">Chrome will prompt you to confirm.</p>
+      </div>
+
+      <div id="sheet-android-fallback" class="sheet-install-block" hidden>
+        <ol class="ios-steps">
+          <li>Tap <span class="step-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg></span> in Chrome's toolbar (top right)</li>
+          <li>Tap <strong>Add to Home screen</strong> (or <strong>Install app</strong>)</li>
+          <li>Tap <strong>Install</strong> to confirm</li>
+        </ol>
+      </div>
+
+      <div id="sheet-ios-block" class="sheet-install-block" hidden>
+        <ol class="ios-steps">
+          <li>Tap <span class="step-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></span> next to the address bar &mdash; or Share <span class="step-icon inline" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 8l5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg></span> directly</li>
+          <li>Tap Share <span class="step-icon inline" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 8l5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg></span></li>
+          <li>Scroll down and tap <strong>Add to Home Screen</strong></li>
+          <li>Tap <strong>Add</strong> at top right</li>
+        </ol>
+        <div class="ios-coach">
+          <div class="coach-arrow">&#8595;</div>
+          <p>Look for the Share icon in Safari's toolbar</p>
+        </div>
+      </div>
+
+      <div id="sheet-generic-block" class="sheet-install-block" hidden>
+        <p>Open this page in Safari (iOS) or Chrome (Android) to install it directly to your device.</p>
       </div>
     </div>
-    <div class="scan-copy">
-      <h1>Point at a QR code</h1>
-      <p id="scan-status">Looking for a code&hellip;</p>
-    </div>
-    <button id="btn-camera-retry" class="btn btn-secondary" hidden>Enable camera</button>
-  </section>
+  </div>
 
   <!-- PREVIEW VIEW -->
   <section id="view-preview" class="view" hidden>
@@ -63,7 +146,9 @@
     <p class="hint">Some sites block embedded previews for security &mdash; that's expected and won't affect the installed app.
       <a id="preview-open-link" href="#" target="_blank" rel="noopener">Open in a new tab</a> to check the real page.
     </p>
-    <button id="btn-preview-next" class="btn btn-primary">Customize app &rarr;</button>
+    <div class="bottom-bar">
+      <button id="btn-preview-next" class="btn btn-primary">Customize app &rarr;</button>
+    </div>
   </section>
 
   <!-- CUSTOMIZE VIEW -->
@@ -88,7 +173,7 @@
     <div class="customize-scroll">
       <label class="field">
         <span>Name</span>
-        <input id="input-name" type="text" maxlength="30" placeholder="My App">
+        <input id="input-name" type="text" maxlength="30" placeholder="My App" autocomplete="off" autocorrect="off" autocapitalize="words" spellcheck="false">
       </label>
 
       <div class="field">
@@ -102,7 +187,7 @@
         <div class="tab-panel" id="panel-favicon"></div>
 
         <div class="tab-panel" id="panel-iconify" hidden>
-          <input id="iconify-search" type="text" placeholder="Search icons&hellip; e.g. calendar">
+          <input id="iconify-search" type="search" placeholder="Search icons&hellip; e.g. calendar" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false">
           <div id="iconify-results" class="iconify-grid"></div>
           <p class="field-hint" id="iconify-status"></p>
         </div>
@@ -150,7 +235,9 @@
       </div>
     </div>
 
-    <button id="btn-customize-next" class="btn btn-primary">Create app &rarr;</button>
+    <div class="bottom-bar">
+      <button id="btn-customize-next" class="btn btn-primary">Create app &rarr;</button>
+    </div>
   </section>
 
   <!-- INSTALL VIEW -->
