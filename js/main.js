@@ -61,7 +61,9 @@ window.addEventListener('beforeinstallprompt', (e) => {
 // ---------------------------------------------------------------------------
 // Entry: figure out which of the three modes this page load is.
 // ---------------------------------------------------------------------------
-const params = decodeAppParams(new URLSearchParams(location.search));
+const searchParams = new URLSearchParams(location.search);
+const params = decodeAppParams(searchParams);
+const hasLaunchParam = searchParams.has('launch');
 const isCreatedInThisSession = (() => {
   try {
     return sessionStorage.getItem('qrapp_created') === '1';
@@ -69,8 +71,8 @@ const isCreatedInThisSession = (() => {
     return false;
   }
 })();
-const hasLaunchParam = new URLSearchParams(location.search).has('launch');
-const isLaunchMode = (isStandalone() || hasLaunchParam) && !isCreatedInThisSession;
+// Immediate launcher mode: only when opened with launch=1 from a home-screen icon
+const isLaunchMode = Boolean(params && (isStandalone() || hasLaunchParam) && hasLaunchParam && !isCreatedInThisSession);
 
 if (params && isLaunchMode) {
   runLaunch(params);
@@ -157,27 +159,13 @@ async function runInstallView(cfg) {
     const shareBtn = $('btn-install-share');
     if (shareBtn) {
       shareBtn.addEventListener('click', async () => {
-        const shareUrl = location.href;
-        const appName = activeInstallCfg?.name || 'App';
-        const shareData = {
-          title: appName,
-          text: `Install ${appName} as an app`,
-          url: shareUrl,
-        };
-        if (navigator.share && (!navigator.canShare || navigator.canShare(shareData))) {
-          try {
-            await navigator.share(shareData);
-            return;
-          } catch (err) {
-            if (err.name === 'AbortError') return;
-          }
-        }
-        try {
-          await navigator.clipboard.writeText(shareUrl);
+        const shareUrl = encodeAppUrl('index.html', activeInstallCfg || params || {});
+        const copied = await copyToClipboard(shareUrl);
+        if (copied) {
           const originalText = shareBtn.textContent;
           shareBtn.textContent = 'Link copied!';
           setTimeout(() => { shareBtn.textContent = originalText; }, 2000);
-        } catch {
+        } else {
           prompt('Copy this link to share the app:', shareUrl);
         }
       });
@@ -192,13 +180,34 @@ async function runInstallView(cfg) {
   }
 }
 
-function applyForInstall(cfg, iconDataUri) {
-  let launchUrl = location.href;
+async function copyToClipboard(text) {
+  if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {}
+  }
   try {
-    const u = new URL(location.href);
-    u.searchParams.set('launch', '1');
-    launchUrl = u.toString();
+    const el = document.createElement('textarea');
+    el.value = text;
+    el.setAttribute('readonly', '');
+    el.style.position = 'fixed';
+    el.style.top = '0';
+    el.style.left = '-9999px';
+    el.style.opacity = '0';
+    document.body.appendChild(el);
+    el.focus();
+    el.select();
+    el.setSelectionRange(0, text.length);
+    const ok = document.execCommand('copy');
+    document.body.removeChild(el);
+    if (ok) return true;
   } catch {}
+  return false;
+}
+
+function applyForInstall(cfg, iconDataUri) {
+  const launchUrl = encodeAppUrl('index.html', cfg, { launch: true });
 
   const manifestUri = buildManifestDataUri({
     name: cfg.name,
@@ -625,11 +634,11 @@ function runScanFlow() {
   }
 
   $('btn-customize-next').addEventListener('click', () => {
-    const finalUrl = encodeAppUrl('index.html', state);
+    const launchUrl = encodeAppUrl('index.html', state, { launch: true });
     try {
       sessionStorage.setItem('qrapp_created', '1');
     } catch {}
-    history.pushState({ view: 'install', cfg: { ...state } }, '', finalUrl);
+    history.pushState({ view: 'install', cfg: { ...state } }, '', launchUrl);
     runInstallView(state);
   });
 }

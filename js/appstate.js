@@ -33,19 +33,25 @@ export function normalizeUrl(raw) {
   }
 }
 
-export function encodeAppUrl(base, cfg) {
+export function encodeAppUrl(base = 'index.html', cfg = {}, options = {}) {
   const params = new URLSearchParams();
-  params.set('t', cfg.targetUrl);
-  params.set('n', cfg.name);
-  params.set('bg', cfg.bgColor.replace('#', ''));
-  params.set('fg', cfg.fgColor.replace('#', ''));
-  params.set('is', cfg.iconSource);
+  if (cfg.targetUrl) params.set('t', cfg.targetUrl);
+  if (cfg.name) params.set('n', cfg.name);
+  if (cfg.bgColor) params.set('bg', cfg.bgColor.replace('#', ''));
+  if (cfg.fgColor) params.set('fg', cfg.fgColor.replace('#', ''));
+  if (cfg.iconSource) params.set('is', cfg.iconSource);
   if (cfg.iconValue) params.set('iv', cfg.iconValue);
   if (cfg.iconUpload) params.set('iu', cfg.iconUpload);
-  params.set('fx', cfg.transition || 'fade');
+  if (cfg.transition) params.set('fx', cfg.transition);
+  if (options.launch) params.set('launch', '1');
 
-  // Attach search parameters reliably to current pathname
-  const url = new URL(location.pathname, location.origin);
+  // Build clean URL pointing explicitly to index.html to prevent server 301 directory redirects
+  let pathname = location.pathname;
+  if (!pathname.endsWith('.html')) {
+    if (!pathname.endsWith('/')) pathname += '/';
+    pathname += 'index.html';
+  }
+  const url = new URL(pathname, location.origin);
   url.search = params.toString();
   return url.toString();
 }
