@@ -1,13 +1,14 @@
-import { Scanner } from './scanner.js?v=11';
-import { startParticles } from './particles.js?v=11';
-import { encodeAppUrl, decodeAppParams, isStandalone, normalizeUrl } from './appstate.js?v=11';
-import { faviconCandidates, firstLoadableFavicon } from './favicon.js?v=11';
-import { searchIcons, iconSvgUrl } from './iconify.js?v=11';
-import { renderIconToCanvas, renderPlaceholderIcon, buildIconDataUri } from './iconBuilder.js?v=11';
-import { buildManifestDataUri, applyManifestLink, applyIOSMeta } from './manifestBuilder.js?v=11';
+import { Scanner } from './scanner.js?v=12';
+import { startParticles } from './particles.js?v=12';
+import { encodeAppUrl, decodeAppParams, isStandalone, normalizeUrl } from './appstate.js?v=12';
+import { faviconCandidates, firstLoadableFavicon } from './favicon.js?v=12';
+import { searchIcons, iconSvgUrl } from './iconify.js?v=12';
+import { renderIconToCanvas, renderPlaceholderIcon, buildIconDataUri } from './iconBuilder.js?v=12';
+import { buildManifestDataUri, applyManifestLink, applyIOSMeta } from './manifestBuilder.js?v=12';
+import { renderQrToCanvas } from './qrEncode.js?v=12';
 
 const $ = (id) => document.getElementById(id);
-const views = ['scan', 'preview', 'customize', 'install'].reduce((m, k) => {
+const views = ['scan', 'customize', 'install'].reduce((m, k) => {
   m[k] = $(`view-${k}`);
   return m;
 }, {});
@@ -29,6 +30,9 @@ function platform() {
   return 'other';
 }
 
+// ---------------------------------------------------------------------------
+// Color helpers
+// ---------------------------------------------------------------------------
 const colorCanvas = document.createElement('canvas');
 colorCanvas.width = colorCanvas.height = 1;
 const colorCtx = colorCanvas.getContext('2d', { willReadFrequently: true });
@@ -41,11 +45,97 @@ function colorToHex(hue, sat, light) {
 }
 
 function calcColor(hue, light) {
-  // Hue 0 is designated as Monochrome / Neutral (0% saturation) so the shade
-  // slider smoothly traverses from pure black to pure white through true greys.
-  // Hue > 0 applies standard vivid 65% saturation.
   const sat = hue === 0 ? 0 : 65;
   return colorToHex(hue, sat, light);
+}
+
+function hexToHsl(hex) {
+  let c = hex.replace('#', '');
+  if (c.length === 3) c = c.split('').map((x) => x + x).join('');
+  const num = parseInt(c, 16);
+  const r = ((num >> 16) & 255) / 255;
+  const g = ((num >> 8) & 255) / 255;
+  const b = (num & 255) / 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  let h = 0;
+  let s = 0;
+  const l = (max + min) / 2;
+  if (max !== min) {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    switch (max) {
+      case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+      case g: h = (b - r) / d + 2; break;
+      case b: h = (r - g) / d + 4; break;
+    }
+    h = Math.round(h * 60);
+  }
+  return { h, s: Math.round(s * 100), l: Math.round(l * 100) };
+}
+
+// ---------------------------------------------------------------------------
+// Bottom Sheet Helper
+// ---------------------------------------------------------------------------
+function setupBottomSheet({ backdropId, containerId, handleId, closeBtnId, onOpen, onClose }) {
+  const backdrop = $(backdropId);
+  const container = $(containerId);
+  const handle = $(handleId);
+  const closeBtn = $(closeBtnId);
+  if (!backdrop || !container) return { open: () => {}, close: () => {} };
+
+  function open() {
+    if (onOpen) onOpen();
+    backdrop.hidden = false;
+    void backdrop.offsetWidth;
+    backdrop.classList.add('active');
+  }
+
+  function close() {
+    if (backdrop.hidden) return;
+    backdrop.classList.remove('active');
+    if (container) container.style.transform = '';
+    setTimeout(() => {
+      backdrop.hidden = true;
+      if (onClose) onClose();
+    }, 280);
+  }
+
+  if (closeBtn) closeBtn.addEventListener('click', close);
+  backdrop.addEventListener('click', (e) => {
+    if (e.target === backdrop) close();
+  });
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !backdrop.hidden) close();
+  });
+
+  if (handle && container) {
+    let startY = 0;
+    let diffY = 0;
+    handle.addEventListener('touchstart', (e) => {
+      startY = e.touches[0].clientY;
+      diffY = 0;
+      container.style.transition = 'none';
+    }, { passive: true });
+
+    handle.addEventListener('touchmove', (e) => {
+      diffY = e.touches[0].clientY - startY;
+      if (diffY > 0) {
+        container.style.transform = `translateY(${diffY}px)`;
+      }
+    }, { passive: true });
+
+    handle.addEventListener('touchend', () => {
+      container.style.transition = '';
+      if (diffY > 75) {
+        close();
+      } else {
+        container.style.transform = '';
+      }
+    });
+  }
+
+  return { open, close };
 }
 
 // ---------------------------------------------------------------------------
@@ -66,10 +156,6 @@ window.addEventListener('beforeinstallprompt', (e) => {
   if (sheetFallback) sheetFallback.hidden = true;
 });
 
-// A beforeinstallprompt event can only be used once, so it is cleared after
-// showing regardless of what the user chose. Chrome does not reliably re-fire
-// it in the same page session, so if the user dismissed the dialog the primary
-// button would silently do nothing from then on — swap in the manual steps.
 async function showChromeInstallPrompt() {
   if (!deferredInstallPrompt) return;
   deferredInstallPrompt.prompt();
@@ -92,7 +178,7 @@ function showAndroidManualFallback() {
 }
 
 // ---------------------------------------------------------------------------
-// Entry: figure out which of the three modes this page load is.
+// Entry detection
 // ---------------------------------------------------------------------------
 const searchParams = new URLSearchParams(location.search);
 const params = decodeAppParams(searchParams);
@@ -103,23 +189,12 @@ const isCreatedInThisSession = (() => {
     return false;
   }
 })();
-// Immediate launcher mode: only when opened as an installed home-screen app.
-// `launch=1` is carried by the manifest start_url and nothing else, so it is a
-// second signal for the cases where an Android WebAPK opens without reporting
-// `display-mode: standalone` — without it those users land on the install page
-// instead of their app.
 const isLaunchMode = Boolean(
   params && (isStandalone() || searchParams.has('launch')) && !isCreatedInThisSession
 );
 
-// NOTE: the actual dispatch happens in boot() at the very bottom of this
-// module. Calling it here would run runInstallView() while the module-level
-// `let` bindings it assigns (activeInstallCfg, installViewInitialized) are
-// still in their temporal dead zone, throwing a ReferenceError and leaving a
-// blank page for anyone opening a shared install link.
-
 // ---------------------------------------------------------------------------
-// Mode: launched from an installed home screen icon -> redirect immediately.
+// Mode: launched from home screen icon -> redirect immediately.
 // ---------------------------------------------------------------------------
 function runLaunch(cfg) {
   if (cfg.transition === 'instant') {
@@ -130,10 +205,14 @@ function runLaunch(cfg) {
   document.body.innerHTML = `<div class="${transitionClass}"><img id="launch-icon" alt=""></div>`;
   const img = $('launch-icon');
 
-  // Synchronous placeholder icon so the launch screen never renders blank
   const placeholderCanvas = document.createElement('canvas');
   placeholderCanvas.width = placeholderCanvas.height = 160;
-  img.src = renderPlaceholderIcon(placeholderCanvas, { bgColor: cfg.bgColor, label: cfg.name });
+  img.src = renderPlaceholderIcon(placeholderCanvas, {
+    bgColor: cfg.bgColor,
+    fgColor: cfg.fgColor,
+    label: cfg.name,
+    fontStyle: cfg.fontStyle || 'sans',
+  });
 
   buildIconDataUri(iconOptsFor(cfg), 160).then((uri) => {
     img.src = uri;
@@ -154,26 +233,35 @@ async function runInstallView(cfg) {
   $('install-app-target').textContent = cfg.targetUrl;
 
   const canvas = $('install-icon-canvas');
-  applyForInstall(cfg, renderPlaceholderIcon(canvas, { bgColor: cfg.bgColor, fgColor: cfg.fgColor, label: cfg.name }));
+  applyForInstall(
+    cfg,
+    renderPlaceholderIcon(canvas, {
+      bgColor: cfg.bgColor,
+      fgColor: cfg.fgColor,
+      label: cfg.name,
+      fontStyle: cfg.fontStyle || 'sans',
+    })
+  );
 
-  // Upgrade to the real icon (favicon/iconify/upload) once it's ready, and
-  // re-apply — browsers pick up manifest link / meta tag changes, but the
-  // start_url above is already correct even if this never finishes in time.
   const opts = iconOptsFor(cfg);
   const { tainted } = await renderIconToCanvas(canvas, opts);
-  // A tainted canvas means the favicon could only be loaded without CORS, so
-  // it cannot be exported — but the OS can fetch that URL itself.
   applyForInstall(cfg, tainted ? opts.sourceValue : canvas.toDataURL('image/png'));
 
   const plat = platform();
   if (plat === 'ios') {
     $('install-ios').hidden = false;
+    $('install-android').hidden = true;
+    $('install-android-fallback').hidden = true;
+    $('install-generic').hidden = true;
   } else if (plat === 'android') {
+    $('install-ios').hidden = true;
+    $('install-generic').hidden = true;
     if (deferredInstallPrompt) {
       $('install-android').hidden = false;
       $('install-android-fallback').hidden = true;
     } else {
       $('install-android').hidden = false;
+      $('install-android-fallback').hidden = true;
       setTimeout(() => {
         if (!deferredInstallPrompt) {
           $('install-android').hidden = true;
@@ -182,18 +270,47 @@ async function runInstallView(cfg) {
       }, 1200);
     }
   } else {
+    $('install-ios').hidden = true;
+    $('install-android').hidden = true;
+    $('install-android-fallback').hidden = true;
     $('install-generic').hidden = false;
+  }
+
+  // Reset in-person QR toggle state
+  const qrBox = $('install-qr-box');
+  const toggleQrBtn = $('btn-toggle-qr');
+  if (qrBox) qrBox.hidden = true;
+  if (toggleQrBtn) {
+    const textSpan = toggleQrBtn.querySelector('span');
+    if (textSpan) textSpan.textContent = 'Show QR Code 📱';
   }
 
   if (!installViewInitialized) {
     installViewInitialized = true;
 
-    $('btn-install-android').addEventListener('click', () => showChromeInstallPrompt());
+    $('btn-install-android')?.addEventListener('click', () => showChromeInstallPrompt());
 
     const shareBtn = $('btn-install-share');
     if (shareBtn) {
       shareBtn.addEventListener('click', async () => {
-        const shareUrl = encodeAppUrl(activeInstallCfg || params || {});
+        const currentCfg = activeInstallCfg || params || {};
+        const shareUrl = encodeAppUrl(currentCfg);
+        const shareTitle = currentCfg.name || 'App';
+        const shareData = {
+          title: shareTitle,
+          text: `Install ${shareTitle} on your home screen`,
+          url: shareUrl,
+        };
+
+        if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
+          try {
+            await navigator.share(shareData);
+            return;
+          } catch (err) {
+            if (err.name === 'AbortError') return;
+          }
+        }
+
         const copied = await copyToClipboard(shareUrl);
         if (copied) {
           const originalText = shareBtn.textContent;
@@ -205,7 +322,23 @@ async function runInstallView(cfg) {
       });
     }
 
-    $('btn-install-restart').addEventListener('click', () => {
+    if (toggleQrBtn && qrBox) {
+      toggleQrBtn.addEventListener('click', () => {
+        const isHidden = qrBox.hidden;
+        qrBox.hidden = !isHidden;
+        const textSpan = toggleQrBtn.querySelector('span');
+        if (textSpan) {
+          textSpan.textContent = isHidden ? 'Hide QR Code ✕' : 'Show QR Code 📱';
+        }
+        if (isHidden) {
+          const qrCanvas = $('install-qr-canvas');
+          const shareUrl = encodeAppUrl(activeInstallCfg || params || {});
+          renderQrToCanvas(qrCanvas, shareUrl, { size: 200, margin: 2 });
+        }
+      });
+    }
+
+    $('btn-install-restart')?.addEventListener('click', () => {
       try {
         sessionStorage.removeItem('qrapp_created');
       } catch {}
@@ -242,7 +375,6 @@ async function copyToClipboard(text) {
 
 function applyForInstall(cfg, iconDataUri) {
   const launchUrl = encodeAppUrl(cfg, { launch: true });
-
   const manifestUri = buildManifestDataUri({
     name: cfg.name,
     startUrl: launchUrl,
@@ -260,18 +392,21 @@ function iconOptsFor(cfg) {
     bgColor: cfg.bgColor,
     fgColor: cfg.fgColor,
     label: cfg.name,
+    fontStyle: cfg.fontStyle || 'sans',
   };
 }
 
-// Returns the scan view to a live state (camera + particles running). Assigned
-// by runScanFlow because both live in its closure; the popstate handler below
-// needs it, since showView('scan') alone leaves a dead, frozen viewfinder.
+// Global resume reference for history navigation
 let resumeScanView = null;
 
 // ---------------------------------------------------------------------------
-// Mode: fresh open -> scan -> preview -> customize -> generate install URL.
+// Mode: scanner & unified studio flow
 // ---------------------------------------------------------------------------
 function runScanFlow() {
+  // Dynamically set manifest.json in scanner mode so Chrome PWA install works
+  const manifestLink = $('link-manifest');
+  if (manifestLink) manifestLink.href = 'manifest.json';
+
   showView('scan');
   let stopParticles = startParticles($('particles'));
 
@@ -280,16 +415,12 @@ function runScanFlow() {
     name: '',
     bgHue: 215,
     bgLight: 45,
-    bgColor: calcColor(215, 45),
+    bgColor: '#2563eb',
     fgHue: 0,
     fgLight: 100,
     fgColor: '#ffffff',
     iconSource: 'favicon',
-    // iconValue is whatever the *current* source needs. The per-source slots
-    // below keep each source's pick intact when the user tabs between them —
-    // without them, choosing an Iconify glyph and then switching back to Auto
-    // would try to load the glyph id ("mdi:home") as a favicon image URL and
-    // silently fall back to a monogram.
+    fontStyle: 'sans',
     iconValue: '',
     faviconValue: '',
     iconifyValue: '',
@@ -297,6 +428,159 @@ function runScanFlow() {
     transition: 'fade',
   };
 
+  // -------------------- Bottom Sheets Setup --------------------
+  const installSheet = setupBottomSheet({
+    backdropId: 'install-sheet-backdrop',
+    containerId: 'install-sheet',
+    handleId: 'sheet-handle-bar',
+    closeBtnId: 'btn-close-sheet',
+    onOpen: () => {
+      const plat = platform();
+      if (plat === 'ios') {
+        $('sheet-ios-block').hidden = false;
+        $('sheet-android-block').hidden = true;
+        $('sheet-android-fallback').hidden = true;
+        $('sheet-generic-block').hidden = true;
+      } else if (plat === 'android') {
+        $('sheet-ios-block').hidden = true;
+        $('sheet-generic-block').hidden = true;
+        if (deferredInstallPrompt) {
+          $('sheet-android-block').hidden = false;
+          $('sheet-android-fallback').hidden = true;
+        } else {
+          $('sheet-android-block').hidden = true;
+          $('sheet-android-fallback').hidden = false;
+        }
+      } else {
+        $('sheet-ios-block').hidden = true;
+        $('sheet-android-block').hidden = true;
+        $('sheet-android-fallback').hidden = true;
+        $('sheet-generic-block').hidden = false;
+      }
+    },
+  });
+
+  $('btn-sheet-install-android')?.addEventListener('click', async () => {
+    await showChromeInstallPrompt();
+    installSheet.close();
+  });
+
+  const menuSheet = setupBottomSheet({
+    backdropId: 'menu-sheet-backdrop',
+    containerId: 'sheet-menu',
+    handleId: 'menu-sheet-handle-bar',
+    closeBtnId: 'btn-close-menu-sheet',
+  });
+
+  $('btn-scanner-menu')?.addEventListener('click', () => {
+    menuSheet.open();
+  });
+
+  $('btn-menu-install')?.addEventListener('click', () => {
+    menuSheet.close();
+    setTimeout(() => { installSheet.open(); }, 150);
+  });
+
+  const directUrlSheet = setupBottomSheet({
+    backdropId: 'direct-url-backdrop',
+    containerId: 'modal-direct-url',
+    handleId: 'direct-url-handle-bar',
+    closeBtnId: 'btn-close-direct-url',
+    onOpen: () => {
+      const errEl = $('direct-url-error');
+      if (errEl) errEl.hidden = true;
+      setTimeout(() => $('input-direct-url')?.focus(), 200);
+    },
+  });
+
+  $('btn-paste-url')?.addEventListener('click', () => {
+    directUrlSheet.open();
+  });
+
+  $('btn-camera-fallback-url')?.addEventListener('click', () => {
+    directUrlSheet.open();
+  });
+
+  // Direct URL paste button
+  $('btn-clipboard-paste')?.addEventListener('click', async () => {
+    if (navigator.clipboard?.readText) {
+      try {
+        const text = await navigator.clipboard.readText();
+        if (text) {
+          $('input-direct-url').value = text.trim();
+          const errEl = $('direct-url-error');
+          if (errEl) errEl.hidden = true;
+        }
+      } catch {}
+    }
+  });
+
+  // Direct URL quick suggestions
+  document.querySelectorAll('.chip-suggestion').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      const url = chip.dataset.url;
+      if (url) {
+        $('input-direct-url').value = url;
+        submitDirectUrl();
+      }
+    });
+  });
+
+  function submitDirectUrl() {
+    const raw = $('input-direct-url')?.value || '';
+    const cleanUrl = normalizeUrl(raw);
+    const errEl = $('direct-url-error');
+    if (!cleanUrl) {
+      if (errEl) {
+        errEl.textContent = 'Please enter a valid website address (e.g. https://example.com)';
+        errEl.hidden = false;
+      }
+      return;
+    }
+    if (errEl) errEl.hidden = true;
+    directUrlSheet.close();
+    scanner.stop();
+    if (stopParticles) stopParticles();
+    enterCustomize(cleanUrl);
+  }
+
+  $('btn-submit-direct-url')?.addEventListener('click', submitDirectUrl);
+  $('input-direct-url')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      submitDirectUrl();
+    }
+  });
+
+  // Scan photo from library
+  const photoInput = $('input-photo-scan');
+  $('btn-scan-photo')?.addEventListener('click', () => {
+    photoInput?.click();
+  });
+
+  photoInput?.addEventListener('change', async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const result = await Scanner.scanImage(file);
+      if (result) {
+        const cleanUrl = normalizeUrl(result);
+        if (cleanUrl) {
+          scanner.stop();
+          if (stopParticles) stopParticles();
+          enterCustomize(cleanUrl);
+          return;
+        }
+      }
+      alert('No QR code found in this photo. Please choose a clearer image.');
+    } catch {
+      alert("Could not process this image file.");
+    } finally {
+      e.target.value = '';
+    }
+  });
+
+  // -------------------- Scanner Instance --------------------
   const torchBtn = $('btn-torch');
   if (torchBtn) {
     torchBtn.addEventListener('click', async () => {
@@ -326,7 +610,7 @@ function runScanFlow() {
       setTimeout(() => {
         scanner.stop();
         if (stopParticles) stopParticles();
-        enterPreview(cleanUrl);
+        enterCustomize(cleanUrl);
       }, 260);
     },
     onError: () => {
@@ -344,7 +628,7 @@ function runScanFlow() {
   });
   scanner.start();
 
-  $('btn-camera-retry').addEventListener('click', () => {
+  $('btn-camera-retry')?.addEventListener('click', () => {
     const errorCard = $('scan-error-card');
     if (errorCard) errorCard.hidden = true;
     $('btn-camera-retry').hidden = true;
@@ -353,50 +637,11 @@ function runScanFlow() {
     scanner.start();
   });
 
-  function enterPreview(url) {
-    closeInstallSheet();
-    const cleanUrl = normalizeUrl(url);
-    state.targetUrl = cleanUrl;
-    state.faviconValue = '';
-    state.iconValue = iconValueForSource(state.iconSource);
-    try {
-      const host = new URL(cleanUrl).hostname.replace(/^www\./, '');
-      state.name = host;
-      $('preview-host').textContent = host;
-    } catch {
-      state.name = 'App';
-      $('preview-host').textContent = 'App';
-    }
-    $('preview-open-link').href = cleanUrl;
-    $('preview-url').textContent = cleanUrl;
-
-    // Detect the favicon once here so both the preview card and the
-    // customize step's "Auto" icon reuse the same result.
-    loadFaviconCandidates();
-
-    // The live iframe is opt-in (see btn-preview-toggle below): many sites
-    // block being framed entirely, and a blank box by default looks broken.
-    $('preview-frame-wrap').hidden = true;
-    $('preview-frame').removeAttribute('src');
-    $('btn-preview-toggle').textContent = 'Show live preview';
-    previewFrameLoaded = false;
-
-    showView('preview');
-  }
-
-  let previewFrameLoaded = false;
-  $('btn-preview-toggle').addEventListener('click', () => {
-    const wrap = $('preview-frame-wrap');
-    wrap.hidden = !wrap.hidden;
-    if (!wrap.hidden && !previewFrameLoaded) {
-      $('preview-frame').src = state.targetUrl;
-      previewFrameLoaded = true;
-    }
-    $('btn-preview-toggle').textContent = wrap.hidden ? 'Show live preview' : 'Hide live preview';
-  });
-
   resumeScanView = () => {
-    closeInstallSheet();
+    installSheet.close();
+    menuSheet.close();
+    directUrlSheet.close();
+
     const pill = $('scan-pill');
     const pillText = $('scan-title');
     if (pill) pill.classList.remove('locked');
@@ -408,113 +653,7 @@ function runScanFlow() {
     scanner.start();
   };
 
-  $('btn-preview-back').addEventListener('click', () => resumeScanView());
-
-  // -------------------- Install as App Bottom Sheet --------------------
-  const installSheetBackdrop = $('install-sheet-backdrop');
-  const showInstallSheetBtn = $('btn-show-install-sheet');
-  const closeInstallSheetBtn = $('btn-close-sheet');
-  const sheetContainer = $('install-sheet');
-  const sheetHandleBar = $('sheet-handle-bar');
-  const sheetInstallAndroidBtn = $('btn-sheet-install-android');
-
-  if (isStandalone() && showInstallSheetBtn) {
-    showInstallSheetBtn.hidden = true;
-  }
-
-  function openInstallSheet() {
-    const plat = platform();
-    if (plat === 'ios') {
-      $('sheet-ios-block').hidden = false;
-      $('sheet-android-block').hidden = true;
-      $('sheet-android-fallback').hidden = true;
-      $('sheet-generic-block').hidden = true;
-    } else if (plat === 'android') {
-      $('sheet-ios-block').hidden = true;
-      $('sheet-generic-block').hidden = true;
-      if (deferredInstallPrompt) {
-        $('sheet-android-block').hidden = false;
-        $('sheet-android-fallback').hidden = true;
-      } else {
-        $('sheet-android-block').hidden = true;
-        $('sheet-android-fallback').hidden = false;
-      }
-    } else {
-      $('sheet-ios-block').hidden = true;
-      $('sheet-android-block').hidden = true;
-      $('sheet-android-fallback').hidden = true;
-      $('sheet-generic-block').hidden = false;
-    }
-
-    installSheetBackdrop.hidden = false;
-    void installSheetBackdrop.offsetWidth;
-    installSheetBackdrop.classList.add('active');
-  }
-
-  function closeInstallSheet() {
-    if (!installSheetBackdrop || installSheetBackdrop.hidden) return;
-    installSheetBackdrop.classList.remove('active');
-    if (sheetContainer) sheetContainer.style.transform = '';
-    setTimeout(() => {
-      installSheetBackdrop.hidden = true;
-    }, 280);
-  }
-
-  if (showInstallSheetBtn) {
-    showInstallSheetBtn.addEventListener('click', openInstallSheet);
-  }
-  if (closeInstallSheetBtn) {
-    closeInstallSheetBtn.addEventListener('click', closeInstallSheet);
-  }
-  if (installSheetBackdrop) {
-    installSheetBackdrop.addEventListener('click', (e) => {
-      if (e.target === installSheetBackdrop) closeInstallSheet();
-    });
-  }
-  window.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && installSheetBackdrop && !installSheetBackdrop.hidden) {
-      closeInstallSheet();
-    }
-  });
-
-  if (sheetInstallAndroidBtn) {
-    sheetInstallAndroidBtn.addEventListener('click', async () => {
-      await showChromeInstallPrompt();
-      closeInstallSheet();
-    });
-  }
-
-  // Swipe down on handle bar to dismiss
-  if (sheetHandleBar && sheetContainer) {
-    let startY = 0;
-    let diffY = 0;
-    sheetHandleBar.addEventListener('touchstart', (e) => {
-      startY = e.touches[0].clientY;
-      diffY = 0;
-      sheetContainer.style.transition = 'none';
-    }, { passive: true });
-
-    sheetHandleBar.addEventListener('touchmove', (e) => {
-      const currentY = e.touches[0].clientY;
-      diffY = currentY - startY;
-      if (diffY > 0) {
-        sheetContainer.style.transform = `translateY(${diffY}px)`;
-      }
-    }, { passive: true });
-
-    sheetHandleBar.addEventListener('touchend', () => {
-      sheetContainer.style.transition = '';
-      if (diffY > 75) {
-        closeInstallSheet();
-      } else {
-        sheetContainer.style.transform = '';
-      }
-    });
-  }
-
-  $('btn-preview-next').addEventListener('click', () => enterCustomize());
-
-  // -------------------- Customize --------------------
+  // -------------------- Unified Studio (Customize) --------------------
   let iconify = { searchTimer: null };
   let mockupRaf = null;
 
@@ -526,36 +665,115 @@ function runScanFlow() {
     slider.style.background = `linear-gradient(90deg, #000000 0%, ${midColor} 50%, #ffffff 100%)`;
   }
 
-  function enterCustomize() {
+  function setBgColor(hex) {
+    state.bgColor = hex.toLowerCase();
+    $('label-bg-hex').textContent = state.bgColor;
+    $('input-bg-color-picker').value = state.bgColor;
+    $('swatch-bg').style.background = state.bgColor;
+    const { h, l } = hexToHsl(state.bgColor);
+    state.bgHue = h;
+    state.bgLight = l;
+    $('slider-bg-hue').value = h;
+    $('slider-bg-light').value = l;
+    updateShadeTrack('slider-bg-light', h);
+    document.querySelectorAll('#chips-bg .chip').forEach((c) => {
+      c.classList.toggle('active', c.dataset.hex.toLowerCase() === state.bgColor);
+    });
+    scheduleMockupUpdate();
+  }
+
+  function setFgColor(hex) {
+    state.fgColor = hex.toLowerCase();
+    $('label-fg-hex').textContent = state.fgColor;
+    $('input-fg-color-picker').value = state.fgColor;
+    $('swatch-fg').style.background = state.fgColor;
+    const { h, l } = hexToHsl(state.fgColor);
+    state.fgHue = h;
+    state.fgLight = l;
+    $('slider-fg-hue').value = h;
+    $('slider-fg-light').value = l;
+    updateShadeTrack('slider-fg-light', h);
+    document.querySelectorAll('#chips-fg .chip').forEach((c) => {
+      c.classList.toggle('active', c.dataset.hex.toLowerCase() === state.fgColor);
+    });
+    scheduleMockupUpdate();
+  }
+
+  function enterCustomize(url) {
+    installSheet.close();
+    menuSheet.close();
+    directUrlSheet.close();
+
+    const cleanUrl = normalizeUrl(url);
+    state.targetUrl = cleanUrl;
+    state.faviconValue = '';
+    state.iconifyValue = '';
+    state.iconUpload = '';
+    state.iconSource = 'favicon';
+    state.fontStyle = 'sans';
+    state.transition = 'fade';
+
+    let host = 'App';
+    try {
+      host = new URL(cleanUrl).hostname.replace(/^www\./, '');
+    } catch {}
+    state.name = host;
+
+    // Destination card
+    $('customize-host').textContent = host;
+    $('customize-url').textContent = cleanUrl;
+    $('btn-verify-link').onclick = () => window.open(cleanUrl, '_blank', 'noopener,noreferrer');
+
     $('input-name').value = state.name;
-    $('slider-bg-hue').value = state.bgHue;
-    $('slider-bg-light').value = state.bgLight;
-    $('slider-fg-hue').value = state.fgHue;
-    $('slider-fg-light').value = state.fgLight;
-    updateShadeTrack('slider-bg-light', state.bgHue);
-    updateShadeTrack('slider-fg-light', state.fgHue);
+
+    // Reset tabs
+    document.querySelectorAll('#icon-source-tabs .tab').forEach((t) => {
+      t.classList.toggle('active', t.dataset.source === 'favicon');
+    });
+    ['favicon', 'monogram', 'iconify', 'upload'].forEach((s) => {
+      const p = $(`panel-${s}`);
+      if (p) p.hidden = s !== 'favicon';
+    });
+
+    // Reset monogram fonts
+    document.querySelectorAll('#monogram-font-chips .segment').forEach((s) => {
+      s.classList.toggle('active', s.dataset.font === 'sans');
+    });
+
+    // Reset transition
+    document.querySelectorAll('#control-transition .segment').forEach((s) => {
+      s.classList.toggle('active', s.dataset.transition === 'fade');
+    });
+
+    // Reset colors
+    setBgColor('#2563eb');
+    setFgColor('#ffffff');
+
     updateColorFieldVisibility();
-    updateSwatches();
+
+    // Reset favicon thumbnail
+    const thumb = $('favicon-preview-thumb');
+    if (thumb) thumb.src = 'icons/favicon.svg';
+
+    loadFaviconCandidates();
+
     scheduleMockupUpdate();
     showView('customize');
   }
 
-  $('btn-customize-back').addEventListener('click', () => showView('preview'));
+  $('btn-customize-back')?.addEventListener('click', () => resumeScanView());
 
-  $('input-name').addEventListener('input', (e) => {
+  $('input-name')?.addEventListener('input', (e) => {
     state.name = e.target.value || 'App';
     scheduleMockupUpdate();
   });
 
-  // Background color applies to monogram, Iconify, and uploads (favicon uses
-  // the original image as-is). Icon color applies to both Iconify glyphs and
-  // the monogram letter.
   function updateColorFieldVisibility() {
     $('field-bg-color').hidden = state.iconSource === 'favicon';
     $('field-fg-color').hidden = state.iconSource !== 'iconify' && state.iconSource !== 'monogram';
   }
 
-  // icon source tabs
+  // Icon source tabs
   document.querySelectorAll('#icon-source-tabs .tab').forEach((tab) => {
     tab.addEventListener('click', () => {
       document.querySelectorAll('#icon-source-tabs .tab').forEach((t) => t.classList.remove('active'));
@@ -571,35 +789,55 @@ function runScanFlow() {
     });
   });
 
-  // Detected once per scan (see enterPreview) and reused as the "Auto" icon;
-  // there's no manual re-pick control since the preview card already shows
-  // exactly what was found.
+  // Monogram font options
+  document.querySelectorAll('#monogram-font-chips .segment').forEach((seg) => {
+    seg.addEventListener('click', () => {
+      document.querySelectorAll('#monogram-font-chips .segment').forEach((s) => s.classList.remove('active'));
+      seg.classList.add('active');
+      state.fontStyle = seg.dataset.font || 'sans';
+      scheduleMockupUpdate();
+    });
+  });
+
+  // Launch experience selector
+  document.querySelectorAll('#control-transition .segment').forEach((seg) => {
+    seg.addEventListener('click', () => {
+      document.querySelectorAll('#control-transition .segment').forEach((s) => s.classList.remove('active'));
+      seg.classList.add('active');
+      state.transition = seg.dataset.transition || 'fade';
+    });
+  });
+
   function iconValueForSource(source) {
     if (source === 'favicon') return state.faviconValue;
     if (source === 'iconify') return state.iconifyValue;
-    return ''; // monogram needs no value; upload carries its bytes in iconUpload
+    return '';
   }
 
   async function loadFaviconCandidates() {
     const requestedUrl = state.targetUrl;
     const best = await firstLoadableFavicon(faviconCandidates(requestedUrl));
-    // Re-scanning before the probe settles would otherwise let the older
-    // lookup overwrite the newer site's icon.
     if (best && state.targetUrl === requestedUrl) {
       state.faviconValue = best;
       if (state.iconSource === 'favicon') state.iconValue = best;
-      $('preview-favicon').src = best;
+      const thumb = $('favicon-preview-thumb');
+      if (thumb) thumb.src = best;
       scheduleMockupUpdate();
     }
   }
 
-  // iconify search
-  $('iconify-search').addEventListener('input', (e) => {
+  $('btn-refetch-favicon')?.addEventListener('click', () => {
+    loadFaviconCandidates();
+  });
+
+  // Iconify search
+  $('iconify-search')?.addEventListener('input', (e) => {
     clearTimeout(iconify.searchTimer);
     const q = e.target.value.trim();
     if (!q) { $('iconify-results').innerHTML = ''; return; }
     iconify.searchTimer = setTimeout(() => runIconifySearch(q), 350);
   });
+
   async function runIconifySearch(q) {
     $('iconify-status').textContent = 'Searching…';
     try {
@@ -624,16 +862,8 @@ function runScanFlow() {
     }
   }
 
-  // Uploaded bytes ride in the `iu` query parameter of the app's own URL, which
-  // is both the shareable install link and the manifest start_url. Request-line
-  // limits on static hosts and CDNs start biting around 8KB, so the encoded
-  // icon is squeezed under a budget rather than merely resized: a 192x192 PNG
-  // of a photograph routinely encodes to 30-80KB, which would produce a link
-  // that 414s before any of this code gets to run.
-  const UPLOAD_URI_BUDGET = 6000; // characters of data URI
-
-  // Progressively cheaper encodings, best quality first. JPEG variants are
-  // composited onto the background colour because JPEG has no alpha channel.
+  // Upload handling
+  const UPLOAD_URI_BUDGET = 6000;
   const UPLOAD_ENCODINGS = [
     { dim: 192, type: 'image/png' },
     { dim: 128, type: 'image/png' },
@@ -668,8 +898,8 @@ function runScanFlow() {
     return c.toDataURL(type, quality);
   }
 
-  $('upload-input').addEventListener('change', (e) => {
-    const file = e.target.files[0];
+  $('upload-input')?.addEventListener('change', (e) => {
+    const file = e.target.files?.[0];
     if (!file) return;
     const status = $('upload-status');
     const reader = new FileReader();
@@ -686,7 +916,7 @@ function runScanFlow() {
         state.iconUpload = encoded;
         if (status) {
           status.textContent = encoded.length > UPLOAD_URI_BUDGET
-            ? 'This image is very detailed, so the share link will be long and may not open everywhere. A simpler logo works better.'
+            ? 'This image is very detailed, so the share link will be long. A simpler logo works better.'
             : degraded
               ? 'Image compressed to keep the share link short.'
               : '';
@@ -704,54 +934,70 @@ function runScanFlow() {
     reader.readAsDataURL(file);
   });
 
-  // colors — hue + lightness sliders together cover the full range
-  // (including white and black at the lightness extremes, unreachable from
-  // hue alone at a fixed saturation).
-  function recomputeBg() {
-    state.bgColor = calcColor(state.bgHue, state.bgLight);
-    updateSwatches();
-    updateShadeTrack('slider-bg-light', state.bgHue);
-    scheduleMockupUpdate();
-  }
-  function recomputeFg() {
-    state.fgColor = calcColor(state.fgHue, state.fgLight);
-    updateSwatches();
-    updateShadeTrack('slider-fg-light', state.fgHue);
-    scheduleMockupUpdate();
-  }
-  $('slider-bg-hue').addEventListener('input', (e) => { state.bgHue = Number(e.target.value); recomputeBg(); });
-  $('slider-bg-light').addEventListener('input', (e) => { state.bgLight = Number(e.target.value); recomputeBg(); });
-  $('slider-fg-hue').addEventListener('input', (e) => { state.fgHue = Number(e.target.value); recomputeFg(); });
-  $('slider-fg-light').addEventListener('input', (e) => { state.fgLight = Number(e.target.value); recomputeFg(); });
-
+  // Palette and Pickers
   document.querySelectorAll('#chips-bg .chip').forEach((btn) => {
     btn.addEventListener('click', () => {
-      state.bgHue = Number(btn.dataset.hue);
-      state.bgLight = Number(btn.dataset.light);
-      $('slider-bg-hue').value = state.bgHue;
-      $('slider-bg-light').value = state.bgLight;
-      recomputeBg();
+      if (btn.dataset.hex) setBgColor(btn.dataset.hex);
     });
+  });
+
+  $('input-bg-color-picker')?.addEventListener('input', (e) => {
+    setBgColor(e.target.value);
   });
 
   document.querySelectorAll('#chips-fg .chip').forEach((btn) => {
     btn.addEventListener('click', () => {
-      state.fgHue = Number(btn.dataset.hue);
-      state.fgLight = Number(btn.dataset.light);
-      $('slider-fg-hue').value = state.fgHue;
-      $('slider-fg-light').value = state.fgLight;
-      recomputeFg();
+      if (btn.dataset.hex) setFgColor(btn.dataset.hex);
     });
   });
 
-  function updateSwatches() {
+  $('input-fg-color-picker')?.addEventListener('input', (e) => {
+    setFgColor(e.target.value);
+  });
+
+  // Sliders fine-tune
+  function recomputeBgFromSliders() {
+    state.bgColor = calcColor(state.bgHue, state.bgLight);
+    $('label-bg-hex').textContent = state.bgColor;
+    $('input-bg-color-picker').value = state.bgColor;
     $('swatch-bg').style.background = state.bgColor;
-    $('swatch-fg').style.background = state.fgColor;
+    updateShadeTrack('slider-bg-light', state.bgHue);
+    document.querySelectorAll('#chips-bg .chip').forEach((c) => {
+      c.classList.toggle('active', c.dataset.hex.toLowerCase() === state.bgColor);
+    });
+    scheduleMockupUpdate();
   }
 
-  // Coalesce to at most one redraw per frame — the underlying glyph is
-  // cached (see iconBuilder.js), so this reads as real-time even while
-  // actively dragging a slider.
+  function recomputeFgFromSliders() {
+    state.fgColor = calcColor(state.fgHue, state.fgLight);
+    $('label-fg-hex').textContent = state.fgColor;
+    $('input-fg-color-picker').value = state.fgColor;
+    $('swatch-fg').style.background = state.fgColor;
+    updateShadeTrack('slider-fg-light', state.fgHue);
+    document.querySelectorAll('#chips-fg .chip').forEach((c) => {
+      c.classList.toggle('active', c.dataset.hex.toLowerCase() === state.fgColor);
+    });
+    scheduleMockupUpdate();
+  }
+
+  $('slider-bg-hue')?.addEventListener('input', (e) => {
+    state.bgHue = Number(e.target.value);
+    recomputeBgFromSliders();
+  });
+  $('slider-bg-light')?.addEventListener('input', (e) => {
+    state.bgLight = Number(e.target.value);
+    recomputeBgFromSliders();
+  });
+  $('slider-fg-hue')?.addEventListener('input', (e) => {
+    state.fgHue = Number(e.target.value);
+    recomputeFgFromSliders();
+  });
+  $('slider-fg-light')?.addEventListener('input', (e) => {
+    state.fgLight = Number(e.target.value);
+    recomputeFgFromSliders();
+  });
+
+  // Live mockups update
   function scheduleMockupUpdate() {
     if (mockupRaf) return;
     mockupRaf = requestAnimationFrame(() => {
@@ -759,6 +1005,7 @@ function runScanFlow() {
       updateMockups();
     });
   }
+
   async function updateMockups() {
     const opts = iconOptsFor(state);
     await Promise.all([
@@ -767,7 +1014,8 @@ function runScanFlow() {
     ]);
   }
 
-  $('btn-customize-next').addEventListener('click', () => {
+  // Create App -> Transition to Install View
+  $('btn-customize-next')?.addEventListener('click', () => {
     const installUrl = encodeAppUrl(state);
     try {
       sessionStorage.setItem('qrapp_created', '1');
@@ -777,6 +1025,9 @@ function runScanFlow() {
   });
 }
 
+// ---------------------------------------------------------------------------
+// History / Popstate handling
+// ---------------------------------------------------------------------------
 window.addEventListener('popstate', (e) => {
   if (e.state && e.state.view) {
     if (e.state.view === 'install' && e.state.cfg) {
@@ -785,25 +1036,28 @@ window.addEventListener('popstate', (e) => {
       showView(e.state.view);
     }
   } else if (!decodeAppParams(new URLSearchParams(location.search))) {
-    // Not a generated-app URL any more, so this is a step back into the
-    // scanner. Testing for an empty query string instead would strand the
-    // user on a stale view whenever an unrelated parameter is present.
     try {
       sessionStorage.removeItem('qrapp_created');
     } catch {}
     if (resumeScanView) {
       resumeScanView();
     } else {
-      // This load started in install mode, so the scan flow was never wired
-      // up; a reload is the only way to get a working viewfinder.
       location.reload();
     }
   }
 });
 
 // ---------------------------------------------------------------------------
-// Entry point. Declared last so every module-level binding above is
-// initialized before any mode runs.
+// Service Worker Registration
+// ---------------------------------------------------------------------------
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch(() => {});
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Boot
 // ---------------------------------------------------------------------------
 function boot() {
   if (isLaunchMode) {

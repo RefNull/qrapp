@@ -27,6 +27,68 @@ export class Scanner {
     }
   }
 
+  // Static helper to decode a QR code from an image source (HTMLImageElement,
+  // HTMLCanvasElement, or ImageData) using BarcodeDetector with jsQR fallback.
+  static async scanImage(source) {
+    if (!source) return null;
+
+    // 1. Try native BarcodeDetector if supported
+    if ('BarcodeDetector' in window) {
+      try {
+        const detector = new window.BarcodeDetector({ formats: ['qr_code'] });
+        const codes = await detector.detect(source);
+        if (codes && codes.length > 0 && codes[0]?.rawValue) {
+          return codes[0].rawValue;
+        }
+      } catch {
+        // Fall back to jsQR
+      }
+    }
+
+    // 2. jsQR fallback
+    if (!window.jsQR) return null;
+
+    if ((typeof ImageData !== 'undefined' && source instanceof ImageData) || (source && source.data && source.width && source.height && typeof source.getContext !== 'function')) {
+      const result = window.jsQR(source.data, source.width, source.height, {
+        inversionAttempts: 'attemptBoth',
+      });
+      return result?.data || null;
+    }
+
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    const w = source.naturalWidth || source.videoWidth || source.width;
+    const h = source.naturalHeight || source.videoHeight || source.height;
+    if (!w || !h) return null;
+
+    // Scale down ultra-high-resolution photos to max 1280px for swift decoding
+    const maxDim = 1280;
+    let dw = w;
+    let dh = h;
+    if (dw > maxDim || dh > maxDim) {
+      if (dw > dh) {
+        dh = Math.round((dh * maxDim) / dw);
+        dw = maxDim;
+      } else {
+        dw = Math.round((dw * maxDim) / dh);
+        dh = maxDim;
+      }
+    }
+
+    canvas.width = dw;
+    canvas.height = dh;
+    ctx.drawImage(source, 0, 0, dw, dh);
+    const imageData = ctx.getImageData(0, 0, dw, dh);
+    const result = window.jsQR(imageData.data, dw, dh, {
+      inversionAttempts: 'attemptBoth',
+    });
+    return result?.data || null;
+  }
+
+  static async scanImageData(imageData) {
+    return Scanner.scanImage(imageData);
+  }
+
   // Safe to call when already running or while a previous call is still
   // awaiting the permission prompt — double-tapping "Enable camera" must not
   // leave an orphaned MediaStream running or start a second scan loop.

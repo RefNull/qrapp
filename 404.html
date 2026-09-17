@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Page Not Found &mdash; QR to App</title>
+<meta name="description" content="404 - The page you are looking for does not exist. Return to QR to App.">
+<meta name="theme-color" content="#0b0d12">
+<link rel="icon" href="icons/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/default-touch-icon.png">
+<link rel="stylesheet" href="css/style.css">
+<style>
+  html, body {
+    height: 100%;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: auto;
+  }
+  .error-wrapper {
+    width: 100%;
+    max-width: 420px;
+    padding: calc(var(--safe-top) + 24px) 20px calc(var(--safe-bottom) + 24px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+  .error-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 36px 28px;
+    width: 100%;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+  }
+  .error-icon-wrap {
+    width: 64px;
+    height: 64px;
+    border-radius: 18px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 20px;
+  }
+  .error-icon-wrap img {
+    width: 36px;
+    height: 36px;
+  }
+  .error-code {
+    font-size: 14px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--accent);
+    margin: 0 0 6px;
+  }
+  h1 {
+    font-size: 22px;
+    font-weight: 700;
+    margin: 0 0 10px;
+    color: var(--text);
+  }
+  p {
+    font-size: 14.5px;
+    line-height: 1.55;
+    color: var(--text-dim);
+    margin: 0 0 24px;
+  }
+  .btn-action {
+    display: block;
+    width: 100%;
+    text-decoration: none;
+    background: var(--accent);
+    color: var(--accent-text);
+    padding: 14px 20px;
+    border-radius: 999px;
+    font-size: 15px;
+    font-weight: 600;
+    transition: transform 120ms ease, opacity 120ms ease;
+  }
+  .btn-action:hover {
+    opacity: 0.92;
+  }
+  .btn-action:active {
+    transform: scale(0.97);
+  }
+  .error-footer {
+    margin-top: 24px;
+    display: flex;
+    gap: 16px;
+    font-size: 13px;
+  }
+  .error-footer a {
+    color: var(--text-dim);
+    text-decoration: none;
+    transition: color 120ms ease;
+  }
+  .error-footer a:hover {
+    color: var(--accent);
+    text-decoration: underline;
+  }
+</style>
+</head>
+<body>
+<div class="error-wrapper">
+  <div class="error-card">
+    <div class="error-icon-wrap">
+      <img src="icons/favicon.svg" alt="" width="36" height="36">
+    </div>
+    <div class="error-code">Error 404</div>
+    <h1>Page Not Found</h1>
+    <p>The page or shortcut you are looking for doesn't exist, may have expired, or the link address might be incorrect.</p>
+    <a href="index.html" class="btn-action">Return to Scanner</a>
+  </div>
+
+  <div class="error-footer">
+    <a href="support.html">Support</a>
+    <a href="privacy.html">Privacy</a>
+    <a href="terms.html">Terms</a>
+  </div>
+</div>
+</body>
+</html>

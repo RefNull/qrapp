@@ -11,11 +11,11 @@ Turn any QR code into a customized home-screen app on iOS and Android. No App St
 
 ## How It Works
 
-1. **Scan**: Point your phone camera at any QR code in the fullscreen viewfinder.
-2. **Style**: Name your app, pick brand colors, and choose an icon (auto-detected site favicon, letter monogram, searchable vector icon, or custom upload).
-3. **Install & Share**: Add directly to your home screen in Safari (iOS) or Chrome (Android), or copy a one-click install link to share.
+1. **Scan or Input**: Point your phone camera at any QR code in the fullscreen reticle, scan a saved photo from your library, or enter/paste any website link directly.
+2. **Style in Studio**: Name your app, pick from a curated system palette or custom color picker, choose an icon (auto-detected site favicon with HD badge, typography monogram with font styles, searchable vector icon, or custom upload), and choose your launch transition (fade, slide up, instant).
+3. **Install & Share**: Add directly to your home screen in Safari (iOS) or Chrome (Android), share via the native OS share sheet (`navigator.share`), or display an instant on-screen QR code for friends to scan and install.
 
-The installed app launches in full standalone mode right from your home screen, with an optional splash transition into the target site.
+The installed app launches in full standalone mode right from your home screen, with an optional splash transition into the target site. Offline shell caching is handled automatically via a built-in Service Worker.
 
 ---
 
@@ -27,11 +27,11 @@ The exact same page adapts its behavior based on how it is opened:
 
 | Context | Mode | What happens |
 | :--- | :--- | :--- |
-| **Browser tab (no params)** | **Scanner** | Fullscreen camera viewfinder (`BarcodeDetector` with automatic `jsQR` fallback), hardware torch toggle, real-time particle effects, and a bottom install sheet (tap to open, swipe down to dismiss). |
-| **Browser tab (with params)** | **Installer** | Injects an in-memory `data:` URI Web App Manifest for Android Chrome, or updates dynamic `apple-touch-icon` tags for iOS Safari, with one-tap copy of the shareable install link. |
-| **Home screen (standalone)** | **Launcher** | Detects standalone display mode and redirects straight to the destination page with a branded transition. |
+| **Browser tab (no params)** | **Scanner & Studio** | Fullscreen camera viewfinder (`BarcodeDetector` with automatic `jsQR` fallback) with targeting reticle, hardware torch toggle, photo scanner, direct URL drawer, settings menu, and instant transition to the unified App Studio. |
+| **Browser tab (with params)** | **Installer** | Injects an in-memory `data:` URI Web App Manifest for Android Chrome, updates dynamic `apple-touch-icon` tags for iOS Safari, native Web Share API trigger, and in-person QR code display. |
+| **Home screen (standalone)** | **Launcher** | Detects standalone display mode and redirects straight to the destination page with a branded splash transition. |
 
-See [`js/appstate.js`](js/appstate.js) for the exact parameter schema.
+See [`js/appstate.js`](js/appstate.js) for the exact parameter schema. All legal and support compliance pages are included ([`privacy.html`](privacy.html), [`terms.html`](terms.html), [`support.html`](support.html)).
 
 ---
 

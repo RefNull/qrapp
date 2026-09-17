@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Support &amp; FAQ &mdash; QR to App</title>
+<meta name="description" content="Support and Frequently Asked Questions for QR to App. Troubleshooting, device install guides, and contact information.">
+<meta name="theme-color" content="#0b0d12">
+<link rel="icon" href="icons/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/default-touch-icon.png">
+<link rel="stylesheet" href="css/style.css">
+<style>
+  html, body {
+    height: auto;
+    min-height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+  .doc-layout {
+    max-width: 680px;
+    margin: 0 auto;
+    padding: calc(var(--safe-top) + 20px) 20px calc(var(--safe-bottom) + 40px);
+    color: var(--text);
+  }
+  .doc-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 32px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .nav-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--accent);
+    text-decoration: none;
+    font-size: 15px;
+    font-weight: 500;
+    transition: opacity 120ms ease;
+  }
+  .nav-back:hover {
+    opacity: 0.85;
+  }
+  .nav-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-dim);
+  }
+  .nav-brand img {
+    width: 22px;
+    height: 22px;
+    border-radius: 5px;
+  }
+  h1 {
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    margin: 0 0 8px;
+  }
+  .intro-text {
+    font-size: 15px;
+    line-height: 1.6;
+    color: var(--text-dim);
+    margin: 0 0 28px;
+  }
+  .contact-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 14px;
+    margin-bottom: 36px;
+  }
+  .contact-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 18px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    text-decoration: none;
+    color: inherit;
+    transition: transform 120ms ease, border-color 150ms ease;
+  }
+  .contact-card:hover {
+    border-color: var(--accent);
+    transform: translateY(-2px);
+  }
+  .contact-card-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .contact-card-desc {
+    font-size: 13.5px;
+    color: var(--text-dim);
+    margin: 0;
+  }
+  .contact-card-action {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--accent);
+    margin-top: 6px;
+  }
+  h2 {
+    font-size: 20px;
+    font-weight: 600;
+    margin: 36px 0 16px;
+    letter-spacing: -0.2px;
+  }
+  .faq-item {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 18px 20px;
+    margin-bottom: 14px;
+  }
+  .faq-question {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text);
+    margin: 0 0 10px;
+  }
+  .faq-answer {
+    font-size: 14.5px;
+    line-height: 1.6;
+    color: var(--text-dim);
+    margin: 0;
+  }
+  .faq-answer p {
+    margin: 0 0 10px;
+  }
+  .faq-answer p:last-child {
+    margin-bottom: 0;
+  }
+  .faq-answer ol, .faq-answer ul {
+    padding-left: 20px;
+    margin: 8px 0;
+  }
+  .faq-answer li {
+    margin-bottom: 6px;
+  }
+  strong {
+    color: var(--text);
+  }
+  code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 13px;
+    padding: 2px 5px;
+    background: var(--surface-2);
+    border-radius: 5px;
+    border: 1px solid var(--border);
+    color: var(--text);
+  }
+  .doc-footer {
+    margin-top: 48px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 13px;
+    color: var(--text-dim);
+  }
+  .doc-footer a {
+    color: var(--accent);
+    text-decoration: none;
+  }
+  .doc-footer a:hover {
+    text-decoration: underline;
+  }
+  .footer-links {
+    display: flex;
+    gap: 16px;
+  }
+</style>
+</head>
+<body>
+<div class="doc-layout">
+  <nav class="doc-nav">
+    <a href="index.html" class="nav-back">&larr; Back to Scanner</a>
+    <span class="nav-brand">
+      <img src="icons/favicon.svg" alt="" width="22" height="22">
+      QR to App
+    </span>
+  </nav>
+
+  <main>
+    <h1>Support &amp; FAQ</h1>
+    <p class="intro-text">Need help using QR to App or troubleshooting home screen installation? Browse common questions below or reach out to our team.</p>
+
+    <div class="contact-cards">
+      <a href="mailto:support@qrapp.app" class="contact-card">
+        <div class="contact-card-title">
+          <span>&#9993;</span> Email Support
+        </div>
+        <p class="contact-card-desc">Direct support for inquiries, bug reports, and store questions.</p>
+        <span class="contact-card-action">support@qrapp.app &rarr;</span>
+      </a>
+
+      <a href="https://github.com/refnull/qrapp" target="_blank" rel="noopener" class="contact-card">
+        <div class="contact-card-title">
+          <span>&#9881;</span> GitHub Community
+        </div>
+        <p class="contact-card-desc">Contribute to development, file issues, and view open source code.</p>
+        <span class="contact-card-action">github.com/refnull/qrapp &rarr;</span>
+      </a>
+    </div>
+
+    <h2>Installation Guides</h2>
+
+    <div class="faq-item">
+      <h3 class="faq-question">How do I add an app to my iPhone or iPad home screen?</h3>
+      <div class="faq-answer">
+        <ol>
+          <li>Open the install link in <strong>Apple Safari</strong>. (Third-party iOS browsers like Chrome or Firefox do not support home screen shortcuts due to iOS restrictions).</li>
+          <li>Tap the <strong>Share button</strong> (the square with an arrow pointing up) in Safari's bottom toolbar.</li>
+          <li>Scroll down the action sheet and tap <strong>Add to Home Screen</strong>.</li>
+          <li>Verify or edit the icon and app title, then tap <strong>Add</strong> in the top-right corner.</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <h3 class="faq-question">How do I add an app to my Android home screen?</h3>
+      <div class="faq-answer">
+        <ol>
+          <li>Open the install link in <strong>Google Chrome</strong> or an Android Chromium browser.</li>
+          <li>Tap <strong>Add to Home Screen</strong> on the prompt, or tap the three dots menu (<code>&vellip;</code>) in the top right.</li>
+          <li>Select <strong>Install app</strong> or <strong>Add to Home screen</strong>.</li>
+          <li>Tap <strong>Install</strong> in the confirmation dialog.</li>
+        </ol>
+      </div>
+    </div>
+
+    <h2>Troubleshooting</h2>
+
+    <div class="faq-item">
+      <h3 class="faq-question">Why is the camera showing "Camera unavailable" or permission errors?</h3>
+      <div class="faq-answer">
+        <p>If you previously tapped "Don't Allow" or blocked camera access, your browser remembers the choice:</p>
+        <ul>
+          <li><strong>On iOS (Safari):</strong> Tap the <code>aA</code> icon on the left side of the address bar &rarr; tap <strong>Website Settings</strong> &rarr; tap <strong>Camera</strong> &rarr; change setting to <strong>Allow</strong>. Reload the page.</li>
+          <li><strong>On Android (Chrome):</strong> Tap the tune or padlock icon next to the URL &rarr; tap <strong>Permissions</strong> &rarr; enable <strong>Camera</strong>.</li>
+          <li><strong>On Desktop:</strong> Verify that your webcam is connected and that browser camera permissions are enabled for the site origin.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <h3 class="faq-question">Why do I have to log into sites again after launching from my home screen on iOS?</h3>
+      <div class="faq-answer">
+        <p>This is expected behavior on Apple devices. iOS Safari isolates standalone Home Screen web apps (PWAs) inside their own isolated WebKit storage container, separate from your main Safari browser session. Cookies and local logins are kept separate for security and privacy. Once you log in inside the standalone app, your session will be maintained there.</p>
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <h3 class="faq-question">Does QR to App store or track my scanned links?</h3>
+      <div class="faq-answer">
+        <p>No. QR to App has no database, no backend server, and no tracking scripts. Camera frames are processed strictly in your browser's local memory. The entire app definition is encoded directly in the URL query string.</p>
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <h3 class="faq-question">Can I use QR to App while offline?</h3>
+      <div class="faq-answer">
+        <p>Yes. QR to App's application shell (scanner, customizer, icons, and libraries) is cached locally by a Service Worker for offline availability. Note that target third-party websites you install will require internet connectivity unless they are specifically designed as offline PWAs.</p>
+      </div>
+    </div>
+  </main>
+
+  <footer class="doc-footer">
+    <span>&copy; 2026 QR to App. MIT License.</span>
+    <div class="footer-links">
+      <a href="privacy.html">Privacy Policy</a>
+      <a href="terms.html">Terms of Service</a>
+      <a href="index.html">Scanner</a>
+    </div>
+  </footer>
+</div>
+</body>
+</html>

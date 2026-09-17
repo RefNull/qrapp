@@ -1,4 +1,4 @@
-import { fetchIconSvgText } from './iconify.js?v=11';
+import { fetchIconSvgText } from './iconify.js?v=12';
 
 // Builds the final home-screen icon entirely client-side.
 //
@@ -82,7 +82,7 @@ function drawContained(ctx, size, img, coverage) {
   ctx.drawImage(img, offset + (box - dw) / 2, offset + (box - dh) / 2, dw, dh);
 }
 
-function drawMonogram(ctx, size, label, bgColor, fgColor) {
+function drawMonogram(ctx, size, label, bgColor, fgColor, fontStyle = 'sans') {
   const letter = (label || '?').trim().charAt(0).toUpperCase() || '?';
   if (fgColor) {
     ctx.fillStyle = fgColor;
@@ -91,7 +91,16 @@ function drawMonogram(ctx, size, label, bgColor, fgColor) {
     const lum = (0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255;
     ctx.fillStyle = lum > 0.6 ? '#111318' : '#ffffff';
   }
-  ctx.font = `700 ${Math.round(size * 0.46)}px -apple-system, Roboto, sans-serif`;
+  let fontFam = '-apple-system, BlinkMacSystemFont, "SF Pro Text", Roboto, sans-serif';
+  let weight = '700';
+  if (fontStyle === 'serif') {
+    fontFam = 'Georgia, "Times New Roman", "New York", serif';
+    weight = '700';
+  } else if (fontStyle === 'mono') {
+    fontFam = '"SF Mono", Menlo, Monaco, "Courier New", monospace';
+    weight = '600';
+  }
+  ctx.font = `${weight} ${Math.round(size * 0.46)}px ${fontFam}`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(letter, size / 2, size / 2 + size * 0.03);
@@ -100,10 +109,10 @@ function drawMonogram(ctx, size, label, bgColor, fgColor) {
 // Synchronous placeholder (background + monogram, no image loads at all).
 // Used so the manifest/meta tags can carry a valid icon on the very first
 // script tick, before any async glyph fetch — see runInstallView in main.js.
-export function renderPlaceholderIcon(canvas, { bgColor, fgColor, label }) {
+export function renderPlaceholderIcon(canvas, { bgColor, fgColor, label, fontStyle }) {
   const size = canvas.width;
   drawFill(canvas.getContext('2d'), size, bgColor);
-  drawMonogram(canvas.getContext('2d'), size, label, bgColor, fgColor);
+  drawMonogram(canvas.getContext('2d'), size, label, bgColor, fgColor, fontStyle);
 
   // Exported from a throwaway canvas rather than `canvas`: a previous render
   // may have tainted the visible one, which would make toDataURL throw here.
@@ -111,7 +120,7 @@ export function renderPlaceholderIcon(canvas, { bgColor, fgColor, label }) {
   exportCanvas.width = exportCanvas.height = size;
   const exportCtx = exportCanvas.getContext('2d');
   drawFill(exportCtx, size, bgColor);
-  drawMonogram(exportCtx, size, label, bgColor, fgColor);
+  drawMonogram(exportCtx, size, label, bgColor, fgColor, fontStyle);
   return exportCanvas.toDataURL('image/png');
 }
 
@@ -128,7 +137,7 @@ export async function renderIconToCanvas(canvas, opts) {
   // Synchronous first-class monogram handling: zero flashing, zero async latency
   if (opts.sourceType === 'monogram') {
     drawFill(ctx, size, opts.bgColor);
-    drawMonogram(ctx, size, opts.label, opts.bgColor, opts.fgColor);
+    drawMonogram(ctx, size, opts.label, opts.bgColor, opts.fgColor, opts.fontStyle);
     return { tainted: false };
   }
 
@@ -187,7 +196,7 @@ export async function renderIconToCanvas(canvas, opts) {
     clean.width = clean.height = size;
     const cleanCtx = clean.getContext('2d');
     drawFill(cleanCtx, size, opts.bgColor);
-    drawMonogram(cleanCtx, size, opts.label, opts.bgColor, opts.fgColor);
+    drawMonogram(cleanCtx, size, opts.label, opts.bgColor, opts.fgColor, opts.fontStyle);
     ctx.clearRect(0, 0, size, size);
     ctx.drawImage(clean, 0, 0);
     return { tainted: false };

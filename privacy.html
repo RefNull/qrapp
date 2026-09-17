@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Privacy Policy &mdash; QR to App</title>
+<meta name="description" content="Privacy Policy for QR to App. Zero backend, zero tracking, and strictly on-device processing.">
+<meta name="theme-color" content="#0b0d12">
+<link rel="icon" href="icons/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/default-touch-icon.png">
+<link rel="stylesheet" href="css/style.css">
+<style>
+  html, body {
+    height: auto;
+    min-height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+  .doc-layout {
+    max-width: 680px;
+    margin: 0 auto;
+    padding: calc(var(--safe-top) + 20px) 20px calc(var(--safe-bottom) + 40px);
+    color: var(--text);
+  }
+  .doc-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 32px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .nav-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--accent);
+    text-decoration: none;
+    font-size: 15px;
+    font-weight: 500;
+    transition: opacity 120ms ease;
+  }
+  .nav-back:hover {
+    opacity: 0.85;
+  }
+  .nav-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-dim);
+  }
+  .nav-brand img {
+    width: 22px;
+    height: 22px;
+    border-radius: 5px;
+  }
+  h1 {
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    margin: 0 0 8px;
+  }
+  .last-updated {
+    font-size: 13.5px;
+    color: var(--text-dim);
+    margin: 0 0 28px;
+  }
+  h2 {
+    font-size: 19px;
+    font-weight: 600;
+    margin: 32px 0 12px;
+    letter-spacing: -0.2px;
+  }
+  p, li {
+    font-size: 15px;
+    line-height: 1.65;
+    color: var(--text-dim);
+    margin: 0 0 14px;
+  }
+  strong {
+    color: var(--text);
+  }
+  ul {
+    padding-left: 20px;
+    margin: 0 0 18px;
+  }
+  li {
+    margin-bottom: 8px;
+  }
+  code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 13.5px;
+    padding: 2px 6px;
+    background: var(--surface-2);
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    color: var(--text);
+  }
+  .callout {
+    padding: 16px 18px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    margin: 20px 0;
+  }
+  .callout p {
+    margin: 0;
+  }
+  .doc-footer {
+    margin-top: 48px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 13px;
+    color: var(--text-dim);
+  }
+  .doc-footer a {
+    color: var(--accent);
+    text-decoration: none;
+  }
+  .doc-footer a:hover {
+    text-decoration: underline;
+  }
+  .footer-links {
+    display: flex;
+    gap: 16px;
+  }
+</style>
+</head>
+<body>
+<div class="doc-layout">
+  <nav class="doc-nav">
+    <a href="index.html" class="nav-back">&larr; Back to Scanner</a>
+    <span class="nav-brand">
+      <img src="icons/favicon.svg" alt="" width="22" height="22">
+      QR to App
+    </span>
+  </nav>
+
+  <main>
+    <h1>Privacy Policy</h1>
+    <p class="last-updated">Effective date: September 17, 2026</p>
+
+    <div class="callout">
+      <p><strong>Summary:</strong> QR to App is built with a zero-backend, privacy-by-design architecture. We do not collect, store, transmit, or monetize your data. All processing occurs entirely in your browser.</p>
+    </div>
+
+    <h2>1. Zero-Backend Architecture</h2>
+    <p>QR to App is a client-side web application hosted as static assets. There are no user accounts, no registration forms, and no application databases. Any application state &mdash; including app names, selected icon designs, brand colors, and destination URLs &mdash; is encoded entirely within URL query parameters on your own device.</p>
+
+    <h2>2. Real-Time Camera Processing</h2>
+    <p>When you use the QR scanner, QR to App requests permission to access your device's video camera via standard Web APIs:</p>
+    <ul>
+      <li>Video frames are analyzed in real-time within your browser's local execution environment using the native <code>BarcodeDetector</code> API or client-side JavaScript (<code>jsQR</code>).</li>
+      <li><strong>No frames, photos, or video streams are ever recorded, saved, uploaded, or transmitted</strong> to any remote server or third party.</li>
+      <li>Camera access ceases immediately when you leave the scan view or close the browser tab.</li>
+    </ul>
+
+    <h2>3. Uploaded Images</h2>
+    <p>If you upload a custom icon from your device's photo library or file system, the image is resized, converted, and encoded locally into a compact PNG data string via an in-memory HTML5 Canvas. The uploaded file never leaves your device and is never sent to any server.</p>
+
+    <h2>4. External Services & Icon Lookups</h2>
+    <p>To assist with icon generation, QR to App may make direct browser requests to the following public, third-party endpoints:</p>
+    <ul>
+      <li><strong>Google Favicon Discovery:</strong> When resolving website favicons, your browser queries Google's public favicon service (<code>www.google.com/s2/favicons</code>) directly to fetch the public icon of the target domain.</li>
+      <li><strong>Iconify API:</strong> When searching for vector glyphs, queries are sent directly to the public Iconify API (<code>api.iconify.design</code>) to fetch open-source icon metadata and SVG shapes.</li>
+    </ul>
+    <p>These requests are initiated directly by your browser. QR to App does not maintain intermediate proxy servers or retain logs of searched icons or target domains.</p>
+
+    <h2>5. Analytics & Tracking</h2>
+    <p>QR to App contains <strong>zero third-party tracking scripts</strong>, zero advertising networks, zero telemetry SDKs, and zero cookies. We do not track your browsing activity, scan history, or install events.</p>
+
+    <h2>6. Contact</h2>
+    <p>If you have any questions or feedback regarding this Privacy Policy or our privacy practices, please contact us:</p>
+    <ul>
+      <li>Email: <a href="mailto:support@qrapp.app">support@qrapp.app</a></li>
+      <li>Source code and issue tracker: <a href="https://github.com/refnull/qrapp" target="_blank" rel="noopener">GitHub Repository</a></li>
+    </ul>
+  </main>
+
+  <footer class="doc-footer">
+    <span>&copy; 2026 QR to App. MIT License.</span>
+    <div class="footer-links">
+      <a href="terms.html">Terms of Service</a>
+      <a href="support.html">Support &amp; FAQ</a>
+      <a href="index.html">Scanner</a>
+    </div>
+  </footer>
+</div>
+</body>
+</html>
